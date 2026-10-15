@@ -6,7 +6,7 @@
  * подключён и не подтверждён в текущей сессии.
  */
 
-import { prisma } from '../../db';
+import { dbTransaction, prisma } from '../../db';
 import { isMfaRequiredForRole } from './policy';
 import { generateRecoveryCodes, matchRecoveryCode } from './recovery';
 import {
@@ -151,20 +151,20 @@ export async function confirmMfaEnrollment(params: {
 
   const { plain, hashes } = await generateRecoveryCodes();
 
-  await prisma.$transaction([
+  await dbTransaction(async (tx) => {
     // Старые коды аннулируются: набор всегда соответствует текущему фактору.
-    prisma.recoveryCode.deleteMany({ where: { userId: params.userId } }),
-    prisma.recoveryCode.createMany({
+    await tx.recoveryCode.deleteMany({ where: { userId: params.userId } });
+    await tx.recoveryCode.createMany({
       data: hashes.map((codeHash) => ({ userId: params.userId, codeHash })),
-    }),
-    prisma.user.update({
+    });
+    await tx.user.update({
       where: { id: params.userId },
       data: {
         totpConfirmedAt: new Date(timestampMs),
         totpLastCounter: result.counter === null ? null : BigInt(result.counter),
       },
-    }),
-  ]);
+    });
+  });
 
   return { confirmed: true, recoveryCodes: plain };
 }
@@ -292,18 +292,18 @@ export async function disableMfa(params: {
     };
   }
 
-  await prisma.$transaction([
-    prisma.recoveryCode.deleteMany({ where: { userId: params.userId } }),
-    prisma.user.update({
+  await dbTransaction(async (tx) => {
+    await tx.recoveryCode.deleteMany({ where: { userId: params.userId } });
+    await tx.user.update({
       where: { id: params.userId },
       data: { totpSecret: null, totpConfirmedAt: null, totpLastCounter: null },
-    }),
+    });
     // Все сессии теряют признак пройденного второго фактора.
-    prisma.session.updateMany({
+    await tx.session.updateMany({
       where: { userId: params.userId },
       data: { mfaVerifiedAt: null, mfaSteppedUpAt: null },
-    }),
-  ]);
+    });
+  });
 
   return { disabled: true };
 }
@@ -320,11 +320,11 @@ export async function regenerateRecoveryCodes(params: {
   }
 
   const { plain, hashes } = await generateRecoveryCodes();
-  await prisma.$transaction([
-    prisma.recoveryCode.deleteMany({ where: { userId: params.userId } }),
-    prisma.recoveryCode.createMany({
+  await dbTransaction(async (tx) => {
+    await tx.recoveryCode.deleteMany({ where: { userId: params.userId } });
+    await tx.recoveryCode.createMany({
       data: hashes.map((codeHash) => ({ userId: params.userId, codeHash })),
-    }),
-  ]);
+    });
+  });
   return { codes: plain };
 }

@@ -48,6 +48,9 @@ export function handleApiError(error: unknown) {
     // Log a correlation ID and class, never raw SQL, document text or credentials.
     const errorId = crypto.randomUUID();
     console.error(JSON.stringify({ event: 'api_error', errorId, type: error.name }));
+    // Вне production текст ошибки нужен для диагностики; в production он
+    // не раскрывается, чтобы не утекли подробности запроса.
+    if (process.env.NODE_ENV !== 'production') console.error(error);
     return jsonError('Внутренняя ошибка сервера', 500, { errorId });
   }
   console.error('Неизвестная ошибка API:', error);

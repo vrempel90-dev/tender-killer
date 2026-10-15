@@ -14,6 +14,8 @@ services:
       timeout: 5s
       retries: 10
 
+  # Миграции и справочники выполняются владельцем схемы: ему нужны права
+  # на DDL, и он намеренно обходит RLS.
   migrate:
     build:
       context: .
@@ -26,6 +28,23 @@ services:
         postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
     command: sh -c "npm run db:deploy && npm run db:seed"
 
+  # Роль приложения с минимальными правами: без DDL и без обхода RLS.
+  # Запускается после миграций, чтобы права покрыли созданные таблицы.
+  db-roles:
+    image: postgres:16-alpine
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}
+    volumes:
+      - ./scripts/db-roles.sql:/scripts/db-roles.sql:ro
+    command: >-
+      psql -h db -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-tender_killer}
+      -v app_user=${APP_DB_USER:-tk_app_runtime}
+      -v app_password=${APP_DB_PASSWORD:?APP_DB_PASSWORD обязателен, минимум 16 символов}
+      -f /scripts/db-roles.sql
+
   app:
     build: .
     restart: unless-stopped
@@ -34,9 +53,13 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      db-roles:
+        condition: service_completed_successfully
     environment:
+      # Приложение работает под ограниченной ролью: политики RLS
+      # применяются к ней, DDL ей недоступен. См. docs/db-isolation.md
       DATABASE_URL: >-
-        postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
+        postgresql://${APP_DB_USER:-tk_app_runtime}:${APP_DB_PASSWORD:?APP_DB_PASSWORD обязателен, минимум 16 символов}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET обязателен, минимум 32 символа}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}

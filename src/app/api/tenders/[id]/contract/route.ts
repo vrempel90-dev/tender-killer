@@ -2,7 +2,7 @@ import { readJson } from '@/lib/security/request';
 /** Анализ проекта договора (Модуль №5). */
 
 import { z } from 'zod';
-import { prisma } from '@/lib/db';
+import { dbTransaction, prisma } from '@/lib/db';
 import { requireSession, requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
@@ -92,8 +92,8 @@ export async function POST(request: Request, { params }: Params) {
         document: sourceDocument,
       });
 
-      await prisma.$transaction([
-        prisma.contractRisk.createMany({
+      await dbTransaction(async (tx) => {
+        await tx.contractRisk.createMany({
           data: risks.map((risk) => ({
             analysisId: analysis.id,
             category: risk.category,
@@ -109,8 +109,8 @@ export async function POST(request: Request, { params }: Params) {
             needsLawyerReview: risk.needsLawyerReview,
             financeHint: (risk.financeHint ?? {}) as object,
           })),
-        }),
-        prisma.contractAnalysis.update({
+        });
+        await tx.contractAnalysis.update({
           where: { id: analysis.id },
           data: {
             status: 'SUCCEEDED',
@@ -119,8 +119,8 @@ export async function POST(request: Request, { params }: Params) {
             extractedTerms: terms as unknown as object,
             tokenUsage: meta.tokenUsage as unknown as object,
           },
-        }),
-      ]);
+        });
+      });
 
       await writeAudit({
         companyId: session.companyId,

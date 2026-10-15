@@ -22,7 +22,13 @@ jobs:
         ports: ['127.0.0.1:5432:5432']
         options: --health-cmd pg_isready --health-interval 5s --health-retries 10
     env:
+      # Владелец схемы: миграции, сиды и прямые проверки в тестах.
       DATABASE_URL: postgresql://tk_test:ci-ephemeral-test-only@127.0.0.1:5432/tender_killer_test
+      # Ограниченная роль приложения: под ней работает сервер в тестах,
+      # поэтому политики RLS действуют (docs/db-isolation.md).
+      APP_DB_USER: tk_app_ci
+      APP_DB_PASSWORD: ci-ephemeral-app-role-only
+      APP_DATABASE_URL: postgresql://tk_app_ci:ci-ephemeral-app-role-only@127.0.0.1:5432/tender_killer_test
       APP_URL: http://localhost:3000
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
@@ -34,18 +40,28 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node -e "require('fs').appendFileSync(process.env.GITHUB_ENV,'SESSION_SECRET='+require('crypto').randomBytes(48).toString('hex')+'\n')"
       - run: npm run db:generate && npm run db:deploy && npm run db:seed
+      # Роль приложения создаётся после миграций: права должны покрыть
+      # уже созданные таблицы.
+      - name: Restricted DB role for the app
+        run: |
+          PGPASSWORD=ci-ephemeral-test-only psql \
+            -h 127.0.0.1 -U tk_test -d tender_killer_test \
+            -v app_user="$APP_DB_USER" -v app_password="$APP_DB_PASSWORD" \
+            -f scripts/db-roles.sql
       - run: npm run verify
       - run: npm run build
       - name: HTTP security integration tests
         run: |
-          npm run dev > /tmp/tender-killer-test.log 2>&1 &
+          # Сервер работает под ограниченной ролью: иначе RLS обходится
+          # владельцем схемы и изоляция осталась бы непроверенной.
+          DATABASE_URL="$APP_DATABASE_URL" npm run dev > /tmp/tender-killer-test.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" || true' EXIT
           for attempt in $(seq 1 60); do
             if curl --fail --silent http://localhost:3000/api/health > /dev/null; then break; fi
             sleep 1
           done
-          npm run test:e2e -- tests/security.spec.ts tests/mfa.spec.ts
+          npm run test:e2e -- tests/security.spec.ts tests/mfa.spec.ts tests/rls.spec.ts
   dependencies:
     runs-on: ubuntu-latest
     timeout-minutes: 10

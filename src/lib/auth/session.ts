@@ -6,12 +6,17 @@
  * по содержимому cookie.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
-import { SignJWT, jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import { randomBytes } from 'node:crypto';
+import { SignJWT } from 'jose';
 import { prisma } from '../db';
+import {
+  hashToken,
+  readSessionClaims,
+  secretKey,
+  SESSION_COOKIE,
+} from './session-claims';
 
-export const SESSION_COOKIE = 'tk_session';
+export { SESSION_COOKIE, hashToken };
 const SESSION_TTL_DAYS = 7;
 
 export interface SessionPayload {
@@ -20,20 +25,6 @@ export interface SessionPayload {
   role: string;
   /** Идентификатор записи в таблице sessions. */
   sid: string;
-}
-
-function secretKey(): Uint8Array {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.length < 32 || /СМЕНИТЕ|CHANGE_ME|REPLACE_ME/i.test(secret)) {
-    throw new Error(
-      'SESSION_SECRET не задан или короче 32 символов. Смотрите .env.example',
-    );
-  }
-  return new TextEncoder().encode(secret);
-}
-
-export function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
 }
 
 /** Создаёт сессию в БД и возвращает подписанный токен для cookie. */
@@ -92,21 +83,9 @@ export interface VerifiedSession extends SessionPayload {
  * активность пользователя. Возвращает null, если сессия недействительна.
  */
 export async function getCurrentSession(): Promise<VerifiedSession | null> {
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-
-  let claims: Record<string, unknown>;
-  try {
-    const { payload } = await jwtVerify(token, secretKey());
-    claims = payload as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const sid = typeof claims.sid === 'string' ? claims.sid : null;
-  const raw = typeof claims.raw === 'string' ? claims.raw : null;
-  if (!sid || !raw) return null;
+  const claims = await readSessionClaims();
+  if (!claims) return null;
+  const { sid, raw } = claims;
 
   const session = await prisma.session.findUnique({
     where: { id: sid },

@@ -2,7 +2,7 @@ import { readJson } from '@/lib/security/request';
 /** Запуск проверки документов заявки на соответствие требованиям. */
 
 import { z } from 'zod';
-import { prisma } from '@/lib/db';
+import { dbTransaction, prisma } from '@/lib/db';
 import { requireSession, requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
@@ -124,8 +124,8 @@ export async function POST(request: Request, { params }: Params) {
         supplierDocuments: toSourceDocuments(documents),
       });
 
-      await prisma.$transaction([
-        prisma.complianceFinding.createMany({
+      await dbTransaction(async (tx) => {
+        await tx.complianceFinding.createMany({
           data: findings.map((f) => ({
             runId: run.id,
             requirementId: f.requirementId,
@@ -141,8 +141,8 @@ export async function POST(request: Request, { params }: Params) {
               ? `${f.uncertaintyReason ?? ''}${f.uncertaintyReason ? ' ' : ''}(${f.adjustmentNote})`
               : f.uncertaintyReason,
           })),
-        }),
-        prisma.complianceRun.update({
+        });
+        await tx.complianceRun.update({
           where: { id: run.id },
           data: {
             status: 'SUCCEEDED',
@@ -150,8 +150,8 @@ export async function POST(request: Request, { params }: Params) {
             aiModel: meta.model,
             tokenUsage: meta.tokenUsage as unknown as object,
           },
-        }),
-      ]);
+        });
+      });
 
       await writeAudit({
         companyId: session.companyId,
