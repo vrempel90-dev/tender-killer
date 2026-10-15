@@ -345,7 +345,8 @@ export async function checkCompliance(params: {
       status: raw.status,
       evidenceQuote: raw.evidenceQuote,
       uncertaintyReason: raw.uncertaintyReason,
-      documents: params.supplierDocuments,
+      documents: params.supplierDocuments.map(doc => ({ ...doc,
+        analysisTruncated: doc.text.length > Math.floor(110_000 / Math.max(1, params.supplierDocuments.length)) })),
     });
     if (verified.adjusted) adjustedCount += 1;
 
@@ -491,7 +492,7 @@ export async function analyzeContract(params: {
       recommendation: risk.recommendation,
       // Непроверяемая цитата — повод показать риск юристу, а не скрыть его.
       needsLawyerReview: risk.needsLawyerReview || !verification.quoteVerified,
-      financeHint: (risk.financeHint ?? null) as Record<string, number | null> | null,
+      financeHint: verification.quoteVerified ? (risk.financeHint ?? null) as Record<string, number | null> | null : null,
     };
   });
 
@@ -506,6 +507,15 @@ export async function analyzeContract(params: {
     penaltyPercentPerDay: t.penaltyPercentPerDay ?? null,
     penaltyCapPercent: t.penaltyCapPercent ?? null,
   };
+  // Every numeric term needs both a verified clause quote and a matching explicit
+  // numeric hint. This establishes traceability, not a legal interpretation.
+  for (const key of Object.keys(terms) as Array<keyof ContractTerms>) {
+    const value = terms[key];
+    if (value === null) continue;
+    const grounded = risks.some(r => r.quoteVerified && r.financeHint?.[key] === value
+      && new RegExp(`(^|[^0-9])${String(value).replace('.', '[.,]')}([^0-9]|$)`).test(r.sourceQuote));
+    if (!grounded) { terms[key] = null; adjustedCount++; }
+  }
 
   return {
     risks,
