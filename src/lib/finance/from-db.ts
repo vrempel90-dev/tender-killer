@@ -69,6 +69,7 @@ export function buildInitialInput(params: {
     unit: string;
     verified: boolean;
     vatMode?: VatMode;
+    supplierChargesVat?: boolean;
   }>;
 }): FinanceInput {
   const base = createEmptyFinanceInput({
@@ -92,7 +93,7 @@ export function buildInitialInput(params: {
       unitCostMinor: i.unitCostMinor as number,
       unit: i.unit,
       vatMode: i.vatMode ?? 'INCLUSIVE',
-      supplierChargesVat: true,
+      supplierChargesVat: i.supplierChargesVat ?? true,
       verified: i.verified,
     }));
 

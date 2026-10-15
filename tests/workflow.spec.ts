@@ -32,10 +32,11 @@ test('public original document → selected FX quote → saved calculation → P
     const quoteBytes=await readFile('src/lib/documents/__tests__/fixtures/quote.xlsx');
     const quoteDoc=await api.post('/api/documents/upload',{multipart:{tenderId:id,kind:'SUPPLIER_QUOTE',file:{name:'TEST-fixture-quote.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:quoteBytes}}});
     expect(quoteDoc.status()).toBe(201);
-    const quote=await api.post(`/api/tenders/${id}/quotes`,{data:{supplierName:'TEST FIXTURE ONLY',documentId:(await quoteDoc.json()).data.documentId,currency:'USD',fxRate:500,pricesIncludeVat:false,items:[{name:'TEST ITEM',quantity:2,unitPrice:100,lineItemId:lineId,specMatch:'MATCH'}]}});
+    const quote=await api.post(`/api/tenders/${id}/quotes`,{data:{supplierName:'TEST FIXTURE ONLY',documentId:(await quoteDoc.json()).data.documentId,currency:'USD',fxRate:500,pricesIncludeVat:false,supplierChargesVat:false,valuesConfirmed:true,items:[{name:'TEST ITEM',quantity:2,unitPrice:100,lineItemId:lineId,specMatch:'MATCH'}]}});
     expect(quote.status()).toBe(201);
     const quotes=(await (await api.get(`/api/tenders/${id}/quotes`)).json()).data;
     expect((await api.patch(`/api/tenders/${id}/line-items`,{data:{lineItemId:lineId,selectedQuoteItemId:quotes[0].items[0].id}})).status()).toBe(200);
+    expect((await api.get(`/api/tenders/${id}/line-items`)).status()).toBe(200);
     await page.goto(`/tenders/${id}/finance`);
     // Browser initial model must contain KZT 50,000 per unit, not USD 100 as KZT.
     await expect(page.locator('input[value="50000"]')).toHaveCount(1);

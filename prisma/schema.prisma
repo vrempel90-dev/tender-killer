@@ -390,6 +390,8 @@ model SupplierQuote {
   fxRate       Decimal?          @db.Decimal(18, 6)
   /// Включает ли цена НДС
   pricesIncludeVat Boolean       @default(true)
+  supplierChargesVat Boolean?
+  valuesConfirmed Boolean @default(false)
   validUntil   DateTime?
   deliveryDays Int?
   notes        String?
