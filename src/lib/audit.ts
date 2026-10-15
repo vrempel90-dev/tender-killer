@@ -31,7 +31,13 @@ export type AuditAction =
   | 'QUOTE_DELETE'
   | 'HISTORY_IMPORT'
   | 'REPORT_GENERATE'
-  | 'TAX_CONFIG_UPDATE';
+  | 'TAX_CONFIG_UPDATE'
+  | 'PROFILE_UPDATE'
+  | 'RADAR_IMPORT'
+  | 'RADAR_IMPORT_DELETE'
+  | 'RADAR_TENDER_CREATED'
+  | 'SAVED_SEARCH_CREATE'
+  | 'SAVED_SEARCH_DELETE';
 
 export async function writeAudit(params: {
   companyId: string;

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Database, FileClock, Percent, ShieldCheck, Users } from 'lucide-react';
+import { Database, FileClock, Percent, Radar, ShieldCheck, Users } from 'lucide-react';
 import { prisma } from '@/lib/db';
 import { ROLE_LABELS, type Role } from '@/lib/auth/guard';
 import { requirePageSession } from '@/lib/auth/page-guard';
@@ -79,6 +79,30 @@ export default async function SettingsPage() {
           </Card>
 
           <div className="space-y-5">
+            <Card>
+              <CardHeader
+                action={
+                  <Link
+                    href="/settings/profile"
+                    className="text-[13px] font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Открыть
+                  </Link>
+                }
+              >
+                <CardTitle>
+                  <span className="flex items-center gap-2">
+                    <Radar className="size-4 text-ink-400" aria-hidden />
+                    Профиль возможностей компании
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  По нему TENDER RADAR сопоставляет закупки с тем, что компания
+                  может поставить.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
             <Card>
               <CardHeader
                 action={

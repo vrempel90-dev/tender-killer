@@ -51,6 +51,10 @@ model Company {
   reports          Report[]
   historicalTenders HistoricalTender[]
   taxOverrides     CompanyTaxRate[]
+  profile            CompanyProfile?
+  procurementImports ProcurementImport[]
+  opportunities      ProcurementOpportunity[]
+  savedSearches      SavedSearch[]
 
   @@map("companies")
 }
@@ -189,6 +193,8 @@ model Tender {
   contractAnalyses ContractAnalysis[]
   supplierQuotes   SupplierQuote[]
   reports          Report[]
+  /// Объявление, из которого создан этот тендер (если создан из RADAR).
+  opportunity      ProcurementOpportunity?
 
   @@index([companyId, stage])
   @@map("tenders")
@@ -631,4 +637,134 @@ model Report {
 
   @@index([companyId, tenderId])
   @@map("reports")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  TENDER RADAR — поиск закупок по импортированным данным.
+//
+//  Приложение НЕ загружает объявления из внешних источников само:
+//  автоматический доступ к API порталов требует законного разрешения и
+//  токенов, которых у приложения нет. Поэтому каждая закупка приходит из
+//  файла, который загрузил пользователь, и хранит ссылку на свой источник
+//  и дату актуальности. Выдуманных закупок в системе нет и быть не может:
+//  создать запись иначе, чем импортом, нельзя.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Профиль возможностей компании: по нему закупки сопоставляются с тем,
+/// что компания реально может поставить.
+model CompanyProfile {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Что компания поставляет: ключевые слова и словосочетания.
+  keywords         String[] @default([])
+  /// Чего компания не берёт: строки с этими словами отсеиваются.
+  excludedKeywords String[] @default([])
+  /// Регионы поставки. Пустой список — без ограничения по региону.
+  regions          String[] @default([])
+  /// Допустимые способы закупки. Пустой список — любые.
+  procurementTypes ProcurementType[] @default([])
+  /// Границы цены договора, в тиын.
+  minPriceMinor BigInt?
+  maxPriceMinor BigInt?
+  /// Минимальный срок поставки, который компания готова выдержать, в днях.
+  minDeliveryDays Int?
+  /// БИН заказчиков, с которыми компания работать не будет.
+  excludedCustomerBins String[] @default([])
+  /// Заказчики, которым компания уже поставляла.
+  preferredCustomerBins String[] @default([])
+  /// Сколько дней до окончания приёма заявок компании нужно на подготовку.
+  minDaysToDeadline Int?
+  notes     String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("company_profiles")
+}
+
+/// Партия импорта объявлений: источник и дата актуальности данных.
+model ProcurementImport {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Название источника, как его указал пользователь.
+  sourceName String
+  /// Ссылка на страницу источника, если есть.
+  sourceUrl  String?
+  /// Имя загруженного файла и его контрольная сумма.
+  fileName   String
+  fileSha256 String
+  /// Дата, на которую данные актуальны. Задаётся пользователем: в выгрузке
+  /// её может не быть, а угадывать такое нельзя.
+  actualAt   DateTime
+
+  rowsTotal    Int
+  rowsImported Int
+  rowsRejected Int
+  /// Почему строки отклонены — честный перечень, а не молчаливая потеря.
+  warnings     String[] @default([])
+
+  importedAt   DateTime @default(now())
+  importedById String?
+
+  opportunities ProcurementOpportunity[]
+
+  @@index([companyId, importedAt])
+  @@map("procurement_imports")
+}
+
+/// Объявление о закупке из импортированной выгрузки.
+model ProcurementOpportunity {
+  id        String            @id @default(cuid())
+  companyId String
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importId  String
+  import    ProcurementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  /// Номер объявления или лота на портале.
+  externalId      String?
+  title           String
+  customerName    String?
+  customerBin     String?
+  priceMinor      BigInt?
+  currency        String          @default("KZT")
+  procurementType ProcurementType @default(OTHER)
+  region          String?
+  /// Окончание приёма заявок.
+  deadline         DateTime?
+  deliveryDeadline DateTime?
+  sourceUrl        String?
+  /// Исходная строка выгрузки: любое значение можно проверить по источнику.
+  raw              Json
+
+  /// Тендер, созданный из этого объявления для финансового анализа.
+  tenderId String? @unique
+  tender   Tender? @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([importId, externalId])
+  @@index([companyId, deadline])
+  @@index([companyId, importId])
+  @@map("procurement_opportunities")
+}
+
+/// Сохранённый поиск: набор фильтров под именем.
+model SavedSearch {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  /// Фильтры в том же виде, в каком их принимает API поиска.
+  filters     Json
+  createdById String?
+  lastRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId, updatedAt])
+  @@map("saved_searches")
 }

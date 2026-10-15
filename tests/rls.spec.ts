@@ -160,9 +160,10 @@ test('роль приложения не обходит RLS, не меняет �
 test('все таблицы с данными компаний защищены политикой', async () => {
   // Если миграция добавит таблицу компании без политики, тест об этом скажет.
   const expected = [
-    'company_tax_rates', 'compliance_findings', 'compliance_runs', 'contract_analyses',
-    'contract_risks', 'document_extractions', 'documents', 'financial_models',
-    'historical_tenders', 'line_items', 'reports', 'requirements',
+    'company_profiles', 'company_tax_rates', 'compliance_findings', 'compliance_runs',
+    'contract_analyses', 'contract_risks', 'document_extractions', 'documents',
+    'financial_models', 'historical_tenders', 'line_items', 'procurement_imports',
+    'procurement_opportunities', 'reports', 'requirements', 'saved_searches',
     'supplier_quote_items', 'supplier_quotes', 'tenders',
   ];
   const { rows } = await owner.query(

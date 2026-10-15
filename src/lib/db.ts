@@ -44,6 +44,10 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'Report',
   'ContractAnalysis',
   'ContractRisk',
+  'CompanyProfile',
+  'ProcurementImport',
+  'ProcurementOpportunity',
+  'SavedSearch',
 ]);
 
 interface TenantContext {
