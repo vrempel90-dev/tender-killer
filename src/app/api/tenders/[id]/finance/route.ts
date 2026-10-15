@@ -10,6 +10,7 @@ import { calculateFinance, ENGINE_VERSION } from '@/lib/finance/engine';
 import { FinanceInputSchema } from '@/lib/finance/schema';
 import type { FinanceInput } from '@/lib/finance/types';
 import { canonicalFinanceInput } from '@/lib/finance/company-tax';
+import { financeEvidence } from '@/lib/provenance';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -61,12 +62,17 @@ export async function POST(request: Request, { params }: Params) {
 
     // Результат пересчитывается на сервере: клиентскому результату не доверяем.
     const result = calculateFinance(input);
+    if (result.missingInputs.some(m => ['tender.bidPriceMinor', 'costs', 'costs.unpricedItems'].includes(m.field))) {
+      return jsonError('Для сохранения финансового расчёта заполните цену и себестоимость всех позиций', 422, result.missingInputs);
+    }
+    const evidence = financeEvidence(input, session.userId);
 
     const model = data.modelId
       ? await prisma.financialModel.update({
           where: { id: data.modelId, tenderId: id, tender: { companyId: session.companyId } },
           data: {
             name: data.name,
+            provenance: evidence as unknown as object,
             inputs: input as unknown as object,
             result: result as unknown as object,
             engineVersion: ENGINE_VERSION,
@@ -76,6 +82,7 @@ export async function POST(request: Request, { params }: Params) {
       : await prisma.financialModel.create({
           data: {
             tenderId: id,
+            provenance: evidence as unknown as object,
             name: data.name,
             inputs: input as unknown as object,
             result: result as unknown as object,

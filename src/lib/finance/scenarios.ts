@@ -4,6 +4,7 @@
  * «стресс» не должен быть чёрным ящиком.
  */
 
+import { mulMinor } from '../money';
 import { calculateFinance } from './engine';
 import type {
   FinanceInput,
@@ -56,7 +57,7 @@ function applyAdjustment(
       bidPriceMinor:
         input.tender.bidPriceMinor === null
           ? null
-          : Math.round(input.tender.bidPriceMinor * adj.priceFactor),
+          : mulMinor(input.tender.bidPriceMinor, adj.priceFactor),
     },
     costs: {
       ...input.costs,

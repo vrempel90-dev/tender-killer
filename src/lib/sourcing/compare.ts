@@ -6,7 +6,7 @@
  * Выдуманных поставщиков, цен и остатков в системе нет.
  */
 
-import { mulMinor } from '../money';
+import { mulMinor, ratioMinor } from '../money';
 
 export type SpecMatch = 'MATCH' | 'PARTIAL' | 'MISMATCH' | 'UNKNOWN';
 
@@ -103,10 +103,10 @@ export function evaluateQuote(
   const totalKztMinor =
     unitPriceKztMinor === null
       ? null
-      : Math.round(unitPriceKztMinor * option.quantity);
+      : mulMinor(unitPriceKztMinor, option.quantity);
 
   const logisticsMinor =
-    Math.round(logistics.perUnitMinor * option.quantity) + logistics.flatMinor;
+    mulMinor(logistics.perUnitMinor, option.quantity) + logistics.flatMinor;
 
   const customsMinor =
     totalKztMinor === null
@@ -125,7 +125,7 @@ export function evaluateQuote(
     landedUnitCostMinor:
       landedCostMinor === null || option.quantity <= 0
         ? null
-        : Math.round(landedCostMinor / option.quantity),
+        : ratioMinor(landedCostMinor, 1, option.quantity),
     issues,
     expired,
   };

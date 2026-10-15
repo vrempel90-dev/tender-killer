@@ -2,7 +2,7 @@
  * Агрегация затрат: суммы без НДС отдельно от входящего НДС.
  */
 
-import { percentOf } from '../money';
+import { percentOf, mulMinor } from '../money';
 import { splitVat } from './vat';
 import type { CostsInput, ItemCostLine, SimpleCostLine, TaxContextInput } from './types';
 
@@ -65,7 +65,7 @@ export function sumItemCosts(
   vatRatePercent: number,
 ): CostGroupTotals {
   return items.reduce((acc, item) => {
-    const amount = Math.round(item.quantity * item.unitCostMinor);
+    const amount = mulMinor(item.unitCostMinor, item.quantity);
     return addGroup(acc, lineTotals(amount, item, vatRatePercent));
   }, EMPTY);
 }

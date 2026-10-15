@@ -41,7 +41,7 @@ export function getAiClient(): Anthropic {
     throw new RequestError('Внешний AI отключён: требуется подтверждённое основание передачи данных и настройка AI_EXTERNAL_TRANSFER_APPROVED.', 503);
   }
   if (!client) {
-    client = new Anthropic({ apiKey, maxRetries: 2, timeout: 180_000 });
+    client = new Anthropic({ apiKey, maxRetries: 0, timeout: 180_000 });
   }
   return client;
 }
@@ -85,7 +85,7 @@ export async function callStructured<T>(params: {
   ]);
   const session = await getCurrentSession();
   if (!session) throw new RequestError('Требуется авторизация', 401);
-  const reservedTokens = Buffer.byteLength(params.system + params.userContent, 'utf8') + (params.maxTokens ?? 8000);
+  const reservedTokens = Buffer.byteLength(params.system + params.userContent + JSON.stringify(params.inputSchema), 'utf8') + 4096 + (params.maxTokens ?? 8000);
   await consumeQuota('ai-daily-calls', session.companyId, 20, 86400);
   await consumeQuota('ai-platform-tokens', 'platform', Number(process.env.AI_DAILY_TOKEN_BUDGET ?? 0), 86400, reservedTokens);
   await consumeQuota('ai-company-tokens', session.companyId, Number(process.env.AI_COMPANY_DAILY_TOKEN_BUDGET ?? 0), 86400, reservedTokens);

@@ -63,7 +63,7 @@ function toMinorOrNull(text: string): number | null {
   if (trimmed === '') return null;
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed)) return null;
-  return toMinor(parsed);
+  try { return toMinor(parsed); } catch { return null; }
 }
 
 /** Ввод числового значения (процент, дни) с поддержкой пустого значения. */

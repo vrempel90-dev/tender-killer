@@ -31,6 +31,9 @@ services:
       AI_COMPANY_DAILY_TOKEN_BUDGET: ${AI_COMPANY_DAILY_TOKEN_BUDGET:-0}
       STORAGE_DIR: /app/storage
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-26214400}
+      CLAMAV_HOST: ${CLAMAV_HOST:-}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      DOCUMENT_SCAN_MODE: required
       APP_URL: ${APP_URL:-http://localhost:3000}
       NODE_ENV: production
     ports:

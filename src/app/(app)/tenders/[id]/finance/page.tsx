@@ -9,9 +9,11 @@ import { FinanceCalculator } from '@/components/finance/calculator';
 import {
   buildInitialInput,
   parseSavedInput,
-  toRateDefinitions,
 } from '@/lib/finance/from-db';
 import { TAX_CONFIG_VERSION } from '@/lib/finance/tax-config';
+import { getCompanyTaxRates } from '@/lib/finance/company-tax';
+import { toRateDefinitions } from '@/lib/finance/from-db';
+import { selectedPriceForFinance } from '@/lib/sourcing/to-finance';
 
 export const metadata: Metadata = { title: 'Экономика тендера' };
 
@@ -29,7 +31,7 @@ export default async function TenderFinancePage({
       include: {
         lineItems: {
           orderBy: { position: 'asc' },
-          include: { selectedQuoteItem: true },
+          include: { selectedQuoteItem: { include: { quote: true } } },
         },
         financialModels: { orderBy: { updatedAt: 'desc' }, take: 1 },
       },
@@ -38,7 +40,7 @@ export default async function TenderFinancePage({
       where: { id: session.companyId },
       select: { taxRegime: true, isVatPayer: true },
     }),
-    prisma.taxRateConfig.findMany({ orderBy: { effectiveFrom: 'desc' } }),
+    getCompanyTaxRates(session.companyId),
   ]);
 
   if (!tender || !company) notFound();
@@ -64,11 +66,9 @@ export default async function TenderFinancePage({
       lineItems: tender.lineItems.map((item) => ({
         name: item.name,
         quantity: Number(item.quantity),
-        unitCostMinor: item.selectedQuoteItem
-          ? Number(item.selectedQuoteItem.unitPriceMinor)
-          : null,
+        ...selectedPriceForFinance(item.selectedQuoteItem),
         unit: item.unit,
-        verified: item.selectedQuoteItem !== null,
+
       })),
     });
   }

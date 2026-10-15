@@ -36,11 +36,13 @@ export function solvePriceForNetProfit(
   options: SolveOptions = {},
 ): SolveResult {
   const maxIterations = options.maxIterations ?? 200;
-  const f = (price: number) =>
-    netProfitAtPrice(input, price, {
+  const f = (price: number) => {
+    try { return netProfitAtPrice(input, price, {
       costFactor: options.costFactor,
       financingCostOverrideMinor: options.financingCostOverrideMinor,
-    }) - targetNetProfitMinor;
+    }) - targetNetProfitMinor; }
+    catch (error) { if (error instanceof RangeError) return Number.NEGATIVE_INFINITY; throw error; }
+  };
 
   // Верхняя граница: грубая оценка «затраты × 4 + начальная цена × 4»,
   // но не меньше разумного минимума. Функция прибыли возрастает по цене,
@@ -65,8 +67,10 @@ export function solvePriceForNetProfit(
   }
 
   let expand = 0;
-  while (f(hi) < 0 && expand < 60) {
-    hi *= 2;
+  const priceLimit = Math.floor(Number.MAX_SAFE_INTEGER / 16);
+  hi = Math.min(hi, priceLimit);
+  while (f(hi) < 0 && expand < 60 && hi < priceLimit) {
+    hi = Math.min(hi * 2, priceLimit);
     expand += 1;
   }
   if (f(hi) < 0) {

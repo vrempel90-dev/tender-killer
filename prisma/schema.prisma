@@ -429,6 +429,7 @@ model SupplierQuoteItem {
 // ───────────────────── Финансовая модель (модуль 1) ──────────────────────────
 
 model FinancialModel {
+  provenance Json?
   id        String   @id @default(cuid())
   tenderId  String
   tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)

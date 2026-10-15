@@ -6,7 +6,7 @@
  * Здесь нет прогноза ДДС — он зависит от результата этого расчёта.
  */
 
-import { percentOf } from '../money';
+import { percentOf, mulMinor, interestMinor, assertMinorFields } from '../money';
 import { aggregateCosts, type AggregatedCosts } from './costs';
 import { computeSecurity, type SecurityComputation } from './securities';
 import { splitVat, splitVatInput } from './vat';
@@ -18,7 +18,6 @@ import type {
   VatSettlement,
 } from './types';
 
-const DAYS_IN_YEAR = 365;
 
 export interface CoreComputation {
   revenue: RevenueBreakdown;
@@ -94,7 +93,7 @@ export function computeCore(
   // ── Затраты ──────────────────────────────────────────────────────────────
   const aggregated = aggregateCosts(input.costs, input.tax);
 
-  const scale = (v: number) => Math.round(v * costFactor);
+  const scale = (v: number) => mulMinor(v, costFactor);
 
   const itemsNet = scale(aggregated.items.netMinor);
   const otherDirectNet = scale(aggregated.otherDirect.netMinor);
@@ -153,9 +152,7 @@ export function computeCore(
     loanAmountUsed = input.financing.loanAmountMinor ?? 0;
     const rate = input.financing.loanAnnualRatePercent ?? 0;
     const days = resolveLoanTermDays(input);
-    financingCost = Math.round(
-      loanAmountUsed * (rate / 100) * (days / DAYS_IN_YEAR),
-    );
+    financingCost = interestMinor(loanAmountUsed, rate, days);
   }
 
   const warrantyReserve = percentOf(
@@ -241,7 +238,7 @@ export function computeCore(
     payableMinor: revenue.vatOutputMinor - recoverableMinor,
   };
 
-  return {
+  const result = {
     revenue,
     costs,
     profit,
@@ -253,6 +250,8 @@ export function computeCore(
     financingCostMinor: financingCost,
     loanAmountUsedMinor: loanAmountUsed,
   };
+  assertMinorFields(result);
+  return result;
 }
 
 /** Чистая прибыль при заданной цене — рабочая функция для решателей. */

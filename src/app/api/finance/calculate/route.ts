@@ -7,7 +7,7 @@ import { readJson } from '@/lib/security/request';
 import { z } from 'zod';
 import { requireSession } from '@/lib/auth/guard';
 import { handleApiError, jsonOk } from '@/lib/http';
-import { calculateFinance } from '@/lib/finance/engine';
+import { calculateFinance, collectMissingInputs } from '@/lib/finance/engine';
 import { calculateAllScenarios } from '@/lib/finance/scenarios';
 import { FinanceInputSchema } from '@/lib/finance/schema';
 import type { FinanceInput } from '@/lib/finance/types';
@@ -26,11 +26,17 @@ export async function POST(request: Request) {
     await consumeQuota('finance', session.companyId, 120, 60);
     const { input, withScenarios } = RequestSchema.parse(await readJson(request));
     const typed = await canonicalFinanceInput(session.companyId, input as FinanceInput);
+    const missingInputs = collectMissingInputs(typed);
+    if (missingInputs.some(m => ['tender.bidPriceMinor', 'costs', 'costs.unpricedItems'].includes(m.field))) {
+      return jsonOk({ status: 'MISSING', missingInputs, result: null, scenarios: [] });
+    }
 
     const result = calculateFinance(typed);
     const scenarios = withScenarios ? calculateAllScenarios(typed) : [];
 
     return jsonOk({
+      status: 'ESTIMATED',
+      missingInputs,
       result,
       scenarios: scenarios.map((s) => ({
         code: s.code,

@@ -1,4 +1,5 @@
 import { readJson } from '@/lib/security/request';
+import { toMinor } from '@/lib/money';
 /**
  * Коммерческие предложения поставщиков.
  *
@@ -38,7 +39,7 @@ const CreateQuoteSchema = z.object({
   /** Документ-основание: загруженное КП или прайс. */
   documentId: z.string().nullable().optional(),
   currency: z.string().length(3).default('KZT'),
-  fxRate: z.number().min(0).max(1e6).nullable().optional(),
+  fxRate: z.number().positive().max(1e6).nullable().optional(),
   pricesIncludeVat: z.boolean().default(true),
   validUntil: z.iso.date().nullable().optional(),
   deliveryDays: z.number().int().min(0).max(3650).nullable().optional(),
@@ -151,7 +152,7 @@ export async function POST(request: Request, { params }: Params) {
             name: item.name,
             unit: item.unit,
             quantity: item.quantity,
-            unitPriceMinor: BigInt(Math.round(item.unitPrice * 100)),
+            unitPriceMinor: BigInt(toMinor(item.unitPrice)),
             lineItemId: item.lineItemId ?? null,
             specMatch: item.specMatch,
             specMatchNote: item.specMatchNote ?? null,
