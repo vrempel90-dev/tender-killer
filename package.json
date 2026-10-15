@@ -7,7 +7,7 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
     "build": "prisma generate && npm run build:worker && next build",
     "build:worker": "esbuild src/lib/documents/worker.ts --bundle --platform=node --format=cjs --packages=external --outfile=.workers/extract.cjs",
     "predev": "npm run build:worker",

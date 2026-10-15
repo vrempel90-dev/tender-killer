@@ -14,12 +14,26 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    build:
+      context: .
+      target: builder
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: >-
+        postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
+    command: sh -c "npm run db:deploy && npm run db:seed"
+
   app:
     build: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: >-
         postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
@@ -41,11 +55,6 @@ services:
     volumes:
       # Документы пользователей хранятся в томе, а не в образе и не в Git
       - storage-data:/app/storage
-    # Миграции и справочник ставок применяются перед запуском приложения
-    command: >-
-      sh -c "node_modules/.bin/prisma migrate deploy &&
-             node_modules/.bin/tsx prisma/seed.ts &&
-             node server.js"
 
 volumes:
   db-data:

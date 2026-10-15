@@ -25,8 +25,14 @@ function createClient(): PrismaClient {
   });
 }
 
-export const prisma: PrismaClient = globalForPrisma.prisma ?? createClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+let moduleClient: PrismaClient | undefined;
+/** Build-time imports do not need DB credentials. A real operation still fails closed. */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = moduleClient ?? globalForPrisma.prisma ?? createClient();
+    moduleClient = client;
+    if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client;
+    const value = Reflect.get(client, property, client);
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});

@@ -6,9 +6,10 @@ import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { AuthError } from './auth/guard';
 import { RequestError } from './security/request';
+import { jsonSafe } from './serialize';
 
 export function jsonOk<T>(data: T, status = 200) {
-  return NextResponse.json({ ok: true, data }, { status });
+  return NextResponse.json({ ok: true, data: jsonSafe(data) }, { status, headers: { 'Cache-Control': 'private, no-store' } });
 }
 
 export function jsonError(

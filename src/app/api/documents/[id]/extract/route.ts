@@ -7,15 +7,17 @@ import { handleApiError, jsonError, jsonOk } from '@/lib/http';
 import { extractDocumentIsolated as extractDocument } from '@/lib/documents/isolated';
 import { inspectDocumentBytes } from '@/lib/documents/inspect';
 import { scanDocument } from '@/lib/documents/scanner';
-import { consumeQuota } from '@/lib/security/quota';
+import { consumeQuota, acquireParserLease } from '@/lib/security/quota';
 import { readStoredFile } from '@/lib/documents/storage';
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  let release: (() => Promise<void>) | undefined;
   try {
     const session = await requireWriteAccess();
+    release = await acquireParserLease(session.companyId);
     await consumeQuota('document-extract', session.companyId, 30, 3600);
     const { id } = await params;
 
@@ -88,5 +90,7 @@ export async function POST(
     }
   } catch (error) {
     return handleApiError(error);
+  } finally {
+    if (release) await release().catch(() => console.error(JSON.stringify({ event: "parser_lease_release_failed" })));
   }
 }

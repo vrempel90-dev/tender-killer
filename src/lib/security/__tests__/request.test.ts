@@ -6,6 +6,10 @@ const req = (origin: string, type = 'application/json') => new Request('http://l
   method: 'POST', headers: { origin, 'content-type': type }, body: '{}',
 });
 describe('request trust boundary', () => {
+  it('requires HTTPS for a non-local production origin',()=>{
+    vi.stubEnv('NODE_ENV','production');vi.stubEnv('APP_URL','http://example.test');
+    expect(()=>assertTrustedMutation(req('http://example.test'))).toThrow(/HTTPS/);
+  });
   it('rejects cross-site login and opaque origins', () => {
     vi.stubEnv('APP_URL', 'http://localhost:3000');
     expect(() => assertTrustedMutation(req('https://attacker.test', 'text/plain'))).toThrow(/Источник/);

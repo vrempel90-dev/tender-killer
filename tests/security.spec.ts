@@ -2,6 +2,9 @@ import { test, expect, request as requestFactory, type APIRequestContext } from 
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { acquireParserLease } from '../src/lib/security/quota';
+import { prisma as quotaDb } from '../src/lib/db';
 import { createEmptyFinanceInput } from '../src/lib/finance/defaults';
 
 const databaseURL = process.env.DATABASE_URL ?? '';
@@ -40,6 +43,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   if (companies.length) await db.company.deleteMany({ where:{ id:{ in:companies } } });
   await a?.dispose(); await b?.dispose(); await db.$disconnect();
+  await quotaDb.$disconnect();
 });
 test('tenant A cannot read tender B or overwrite its model via own tender URL', async () => {
   expect((await a.get(`/api/tenders/${tenderB}`)).status()).toBe(404);
@@ -71,10 +75,31 @@ test('account attempts are limited, malformed JSON is rejected',async()=>{
   expect((await a.post('/api/auth/login',{data:{email,password:'bad'}})).status()).toBe(429);
   expect((await a.post('/api/tenders',{headers:{'content-type':'application/json'},data:Buffer.from('{')})).status()).toBe(400);
 });
+test('document metadata, bytes, deletion and re-extraction reject another tenant',async()=>{
+  const bytes=await readFile('src/lib/documents/__tests__/fixtures/spec.pdf');
+  const uploaded=await a.post('/api/documents/upload',{multipart:{tenderId:tenderA,
+    file:{name:'TEST-isolation.pdf',mimeType:'application/pdf',buffer:bytes}}});
+  expect(uploaded.status()).toBe(201); const id=(await uploaded.json()).data.documentId;
+  try {
+    expect((await b.get(`/api/documents/${id}`)).status()).toBe(404);
+    expect((await b.get(`/api/documents/${id}/download`)).status()).toBe(404);
+    expect((await b.post(`/api/documents/${id}/extract`)).status()).toBe(404);
+    expect((await b.delete(`/api/documents/${id}`)).status()).toBe(404);
+    expect((await a.get(`/api/documents/${id}/download`)).status()).toBe(200);
+  } finally { await a.delete(`/api/documents/${id}`); }
+});
 test('VIEWER cannot write and logout revokes the server session',async()=>{
   const viewer=await register(a,'viewer');
   await db.user.update({where:{id:viewer.userId},data:{role:'VIEWER'}});
   expect((await a.post('/api/tenders',{data:{title:'forbidden'}})).status()).toBe(403);
   expect((await a.post('/api/auth/logout')).status()).toBe(200);
   expect((await a.get('/api/tenders')).status()).toBe(401);
+});
+
+test('parser lease is enforced across callers and released without leaving a lock',async()=>{
+  const subject=`e2e-lease-${randomUUID()}`;
+  const release=await acquireParserLease(subject);
+  try { await expect(acquireParserLease(subject)).rejects.toMatchObject({status:429}); }
+  finally { await release(); }
+  const next=await acquireParserLease(subject); await next();
 });

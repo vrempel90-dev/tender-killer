@@ -21,3 +21,27 @@ export async function consumeQuota(scope: string, subject: string, limit: number
     await prisma.requestQuota.deleteMany({ where: { expiresAt: { lt: new Date(now) } } });
   }
 }
+
+async function claimLease(subject: string): Promise<(() => Promise<void>) | null> {
+  const key = createHash('sha256').update(`lease:${subject}`).digest('hex');
+  const now = new Date(), expiresAt = new Date(now.getTime() + 120_000);
+  const rows = await prisma.$queryRaw<Array<{ key: string }>>`
+    INSERT INTO request_quotas (key, count, "expiresAt") VALUES (${key}, 1, ${expiresAt})
+    ON CONFLICT (key) DO UPDATE SET "expiresAt" = EXCLUDED."expiresAt"
+    WHERE request_quotas."expiresAt" < ${now} RETURNING key`;
+  if (!rows.length) return null;
+  return async () => { await prisma.requestQuota.deleteMany({ where: { key, expiresAt } }); };
+}
+
+/** One upload/parser per company, four across the shared platform, across replicas. */
+export async function acquireParserLease(companyId: string): Promise<() => Promise<void>> {
+  const company = await claimLease(`parser-company:${companyId}`);
+  if (!company) throw new RequestError('Обработка документа компании уже выполняется', 429);
+  try {
+    for (let slot = 0; slot < 4; slot++) {
+      const platform = await claimLease(`parser-platform:${slot}`);
+      if (platform) return async () => { await platform(); await company(); };
+    }
+    throw new RequestError('Сервис обработки занят. Повторите позднее.', 429);
+  } catch (error) { await company(); throw error; }
+}

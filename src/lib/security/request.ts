@@ -10,6 +10,11 @@ export function assertTrustedMutation(request: Request): void {
     throw new RequestError('APP_URL не настроен', 503);
   }
   const allowed = new URL(configured || 'http://localhost:3000').origin;
+  const app = new URL(allowed);
+  if (process.env.NODE_ENV === 'production' && app.protocol !== 'https:'
+    && !['localhost','127.0.0.1','[::1]'].includes(app.hostname)) {
+    throw new RequestError('Production APP_URL должен использовать HTTPS', 503);
+  }
   if (request.headers.get('origin') !== allowed
     || request.headers.get('sec-fetch-site') === 'cross-site') {
     throw new RequestError('Источник запроса не разрешён', 403);
@@ -36,6 +41,8 @@ export async function readBoundedBody(request: Request, limit: number): Promise<
   if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];
   let length = 0;
+  let timedOut = false;
+  const timeout = setTimeout(() => { timedOut = true; void reader.cancel().catch(() => undefined); }, 30_000);
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -47,7 +54,8 @@ export async function readBoundedBody(request: Request, limit: number): Promise<
       }
       chunks.push(value);
     }
-  } finally { reader.releaseLock(); }
+  } finally { clearTimeout(timeout); reader.releaseLock(); }
+  if (timedOut) throw new RequestError('Превышено время загрузки запроса', 408);
   const result = new Uint8Array(length);
   let offset = 0;
   for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }

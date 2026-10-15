@@ -1,6 +1,14 @@
 # TENDER KILLER
 
 AI-платформа анализа государственных и корпоративных закупок Казахстана.
+ 
+> **Статус после аудита 15.10.2026:** проект продолжен, критичные пути доступа
+> и финансового переноса исправлены. К коммерческому запуску **не готов**.
+> Актуальные результаты: [аудит](docs/audit-2026-10-15.md),
+> [безопасность](docs/security-foundation.md), [финансы/E2E](docs/finance-corrections.md),
+> [ограничения AI](docs/ai-integrity.md), [release gates](docs/release-gates.md).
+> Ниже сохранено описание исходных модулей; оно не является подтверждением
+> полной готовности. Живой AI, MFA, backup/restore и production не проверены.
 Отвечает поставщику на пять вопросов до подачи заявки:
 
 1. Стоит ли участвовать в конкретном тендере?
@@ -60,7 +68,8 @@ npm install
 
 # 2. Конфигурация
 cp .env.example .env
-#    Обязательно задайте DATABASE_URL и SESSION_SECRET.
+#    Обязательно задайте DATABASE_URL, SESSION_SECRET и APP_URL.
+#    Для документов настройте CLAMAV_HOST / DOCUMENT_SCAN_MODE.
 #    Сгенерировать секрет: openssl rand -base64 48
 
 # 3. База данных: применить миграции и загрузить справочник налоговых ставок
@@ -88,7 +97,7 @@ npm start          # запуск собранного сервера
 ### Проверка сборки и тестов
 
 ```bash
-npm run verify     # типы + линтер + тесты (213 тестов)
+npm run verify     # типы + линтер + тесты
 npm run test       # только автотесты
 npm run build      # production-сборка
 ```
@@ -105,7 +114,7 @@ npm run build      # production-сборка
 ## Запуск в Docker
 
 ```bash
-cp .env.example .env     # задайте SESSION_SECRET
+cp .env.example .env     # задайте SESSION_SECRET, POSTGRES_PASSWORD, APP_URL и CLAMAV_HOST
 docker compose up --build
 ```
 

@@ -24,7 +24,7 @@ export interface SessionPayload {
 
 function secretKey(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.length < 32) {
+  if (!secret || secret.length < 32 || /СМЕНИТЕ|CHANGE_ME|REPLACE_ME/i.test(secret)) {
     throw new Error(
       'SESSION_SECRET не задан или короче 32 символов. Смотрите .env.example',
     );
@@ -44,6 +44,7 @@ export async function createSession(params: {
   userAgent?: string | null;
   ipAddress?: string | null;
 }): Promise<{ token: string; expiresAt: Date }> {
+  const signingKey = secretKey();
   const raw = randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 86_400_000);
 
@@ -68,7 +69,7 @@ export async function createSession(params: {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
-    .sign(secretKey());
+    .sign(signingKey);
 
   return { token, expiresAt };
 }

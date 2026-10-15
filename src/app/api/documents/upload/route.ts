@@ -15,7 +15,7 @@ import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 import { extractDocumentIsolated as extractDocument } from '@/lib/documents/isolated';
 import { inspectDocumentBytes } from '@/lib/documents/inspect';
 import { scanDocument } from '@/lib/documents/scanner';
-import { consumeQuota } from '@/lib/security/quota';
+import { consumeQuota, acquireParserLease } from '@/lib/security/quota';
 import {
   buildStoragePath,
   deleteStoredFile,
@@ -38,8 +38,10 @@ const DOCUMENT_KINDS = [
 type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 export async function POST(request: Request) {
+  let release: (() => Promise<void>) | undefined;
   try {
     const session = await requireWriteAccess();
+    release = await acquireParserLease(session.companyId);
 
     await consumeQuota('document-upload', session.companyId, 30, 3600);
     const form = await readUploadForm(request, maxUploadBytes());
@@ -220,5 +222,7 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     return handleApiError(error);
+  } finally {
+    if (release) await release().catch(() => console.error(JSON.stringify({ event: "parser_lease_release_failed" })));
   }
 }
