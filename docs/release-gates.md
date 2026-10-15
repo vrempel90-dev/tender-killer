@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | P0 | MFA администраторов и passkeys | Не реализованы; нужен отдельный этап с enrollment/recovery/step-up/E2E |
 | P0 | DB least privilege / RLS | Проверки приложением есть, RLS нет; Compose app и миграции ещё используют один DB principal |
-| P0 | Зависимости | Последний npm audit --omit=dev: 4 high, 5 moderate; включая Prisma CLI transitive dependencies. Эксплуатируемость каждого пути отдельно не подтверждена. CI audit намеренно блокирует high |
+| P0 | Зависимости | После overrides: npm audit --omit=dev — 0 high, 3 moderate. Полный audit всё ещё блокируется dev-цепочкой braces без выпущенной исправленной версии. Mammoth CLI / argparse / sprintf требуют отдельной оценки. Trivy проверяется в CI |
 | P0 | Казахстан и персональные данные | Не выбраны хостинг, регион БД/файлов/backup, менеджер ключей; требуется правовая проверка |
 | P0 | Backup / restore и incident response | Не настроены и не проверены на выбранной инфраструктуре |
 | P0 | Независимая проверка | Нужны независимые security/legal review и оставшаяся статическая проверка компонентов |
@@ -46,9 +46,11 @@
 
 ## Deployment
 
-Docker изменён, но не запускался локально: engine не установлен. Migration/seed
+Docker не запускался локально: engine не установлен; Linux build выполняется в CI. Migration/seed
 вынесены в одноразовый builder service. Worker production dependencies копируются
-явно, приложение остаётся непривилегированным. DB/Redis не публикуются наружу;
+явно, runtime не содержит npm и peer migration CLI. Добавлен container smoke
+без сети, с read-only FS, cap-drop и no-new-privileges. Приложение остаётся
+непривилегированным. DB/Redis не публикуются наружу;
 приложение Compose связано с loopback. Нужен отдельный TLS ingress.
 
 `POSTGRES_PASSWORD` обязателен; для URL используйте корректно закодированный

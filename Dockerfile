@@ -20,7 +20,7 @@ RUN npm run build
 FROM node:22-alpine AS production-deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+RUN npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund
 
 # ─────────────────────────── Запуск ───────────────────────────
 FROM node:22-alpine AS runner
@@ -35,6 +35,9 @@ ENV HOSTNAME=0.0.0.0
 # Приложение работает под непривилегированным пользователем
 # Шрифт с поддержкой кириллицы нужен для генерации PDF-отчётов.
 RUN apk add --no-cache font-dejavu
+
+# Runtime executes Node only. Keep npm, migration CLI and build tooling out of it.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
