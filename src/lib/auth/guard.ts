@@ -5,6 +5,7 @@
  * Идентификатор компании НИКОГДА не приходит от клиента.
  */
 
+import { consumeQuota } from '../security/quota';
 import { evaluateMfaGate, gateMessage, needsStepUp, type MfaGate } from './mfa/policy';
 import { getCurrentSession, type VerifiedSession } from './session';
 
@@ -112,9 +113,21 @@ export async function requireRole(minRole: Role): Promise<VerifiedSession> {
   return session;
 }
 
+/**
+ * Общий предел изменяющих запросов одной компании: 300 в минуту.
+ *
+ * Отдельные операции имеют свои, более строгие пределы (загрузка файлов,
+ * AI-анализ, подбор). Этот — страховка от того, что новый обработчик
+ * добавят без собственного лимита: он применяется ко всем изменениям,
+ * потому что проходит через проверку права на запись.
+ */
+const WRITE_LIMIT_PER_MINUTE = 300;
+
 /** Право на изменение данных (аналитик и выше). */
 export async function requireWriteAccess(): Promise<VerifiedSession> {
-  return requireRole('ANALYST');
+  const session = await requireRole('ANALYST');
+  await consumeQuota('api-write', session.companyId, WRITE_LIMIT_PER_MINUTE, 60);
+  return session;
 }
 
 export function canWrite(role: string): boolean {

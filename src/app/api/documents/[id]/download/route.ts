@@ -18,13 +18,20 @@ export async function GET(
 
     const document = await prisma.document.findFirst({
       where: { id, companyId: session.companyId, deletedAt: null },
-      select: { storagePath: true, mimeType: true, originalName: true },
+      select: {
+        storagePath: true,
+        mimeType: true,
+        originalName: true,
+        sha256: true,
+      },
     });
     if (!document || document.storagePath === '') {
       return jsonError('Документ не найден', 404);
     }
 
-    const buffer = await readStoredFile(document.storagePath);
+    // Сверка с контрольной суммой из БД: пользователь не должен получить
+    // повреждённый или подменённый файл под именем своего документа.
+    const buffer = await readStoredFile(document.storagePath, document.sha256);
 
     return new Response(new Uint8Array(buffer), {
       headers: {
@@ -34,6 +41,9 @@ export async function GET(
         'Content-Length': String(buffer.byteLength),
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
+        // Файл пользователя не должен ничего загружать или исполнять,
+        // даже если браузер попробует его отобразить.
+        'Content-Security-Policy': "default-src 'none'; sandbox",
       },
     });
   } catch (error) {

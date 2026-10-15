@@ -28,6 +28,7 @@ export async function POST(
         storagePath: true,
         mimeType: true,
         originalName: true,
+        sha256: true,
       },
     });
     if (!document || document.storagePath === '') {
@@ -41,7 +42,9 @@ export async function POST(
     });
 
     try {
-      const buffer = await readStoredFile(document.storagePath);
+      // Сверка с контрольной суммой из БД: повреждённый или подменённый
+      // файл не должен попасть в разбор как «документ пользователя».
+      const buffer = await readStoredFile(document.storagePath, document.sha256);
       await inspectDocumentBytes(buffer, document.originalName);
       await scanDocument(buffer);
       const outcome = await extractDocument({

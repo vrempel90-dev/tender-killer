@@ -26,6 +26,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "verify": "npm run typecheck && npm run lint && npm run test",
     "test:e2e": "playwright test",
+    "keygen:documents": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
     "postbuild": "node scripts/copy-static.mjs"
   },
   "prisma": {

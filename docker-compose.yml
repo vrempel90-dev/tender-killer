@@ -67,6 +67,9 @@ services:
       AI_DAILY_TOKEN_BUDGET: ${AI_DAILY_TOKEN_BUDGET:-0}
       AI_COMPANY_DAILY_TOKEN_BUDGET: ${AI_COMPANY_DAILY_TOKEN_BUDGET:-0}
       STORAGE_DIR: /app/storage
+      # Документы шифруются на диске (docs/document-security.md).
+      # Без ключа загрузка документов в production отключена.
+      DOCUMENT_ENCRYPTION_KEY: ${DOCUMENT_ENCRYPTION_KEY:?DOCUMENT_ENCRYPTION_KEY обязателен: 32 байта в base64, npm run keygen:documents}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-26214400}
       CLAMAV_HOST: ${CLAMAV_HOST:-}
       CLAMAV_PORT: ${CLAMAV_PORT:-3310}

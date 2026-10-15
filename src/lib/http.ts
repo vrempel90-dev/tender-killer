@@ -5,6 +5,8 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { AuthError, MfaError } from './auth/guard';
+import { DocumentIntegrityError } from './documents/storage';
+import { EncryptionKeyError } from './documents/encryption';
 import { RequestError } from './security/request';
 import { jsonSafe } from './serialize';
 
@@ -19,7 +21,9 @@ export function jsonError(
 ) {
   return NextResponse.json(
     { ok: false, error: message, details: details ?? null },
-    { status },
+    // Ответы с ошибками тоже не должны попадать в кэши промежуточных узлов:
+    // они содержат сведения о состоянии конкретной сессии.
+    { status, headers: { 'Cache-Control': 'private, no-store' } },
   );
 }
 
@@ -27,6 +31,14 @@ export function jsonError(
 export function handleApiError(error: unknown) {
   if (error instanceof RequestError) return jsonError(error.message, error.status);
   if (error instanceof RangeError) return jsonError('Финансовое значение выходит за допустимый диапазон', 422);
+  if (error instanceof DocumentIntegrityError) {
+    // Это проблема хранилища, не запроса: сообщение честное, подробности
+    // файла не раскрываются.
+    return jsonError(error.message, 500);
+  }
+  if (error instanceof EncryptionKeyError) {
+    return jsonError('Хранилище документов не настроено. Обратитесь к администратору.', 503);
+  }
   if (error instanceof MfaError) {
     // Клиент по этому признаку уводит пользователя на /mfa.
     return jsonError(error.message, error.status, { mfaGate: error.gate });

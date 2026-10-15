@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { acquireParserLease } from '../src/lib/security/quota';
 import { prisma as quotaDb } from '../src/lib/db';
 import { createEmptyFinanceInput } from '../src/lib/finance/defaults';
@@ -90,6 +92,14 @@ test('document metadata, bytes, deletion and re-extraction reject another tenant
     file:{name:'TEST-isolation.pdf',mimeType:'application/pdf',buffer:bytes}}});
   expect(uploaded.status()).toBe(201); const id=(await uploaded.json()).data.documentId;
   try {
+    // На диске документ лежит зашифрованным: доступ к тому не даёт содержимого.
+    const row=await db.document.findUniqueOrThrow({where:{id},select:{storagePath:true}});
+    const onDisk=await readFile(path.resolve(process.env.STORAGE_DIR ?? './storage', row.storagePath));
+    expect(onDisk.subarray(0,7).toString('ascii')).toBe('TKENC1\n');
+    expect(onDisk.includes(bytes.subarray(0,16))).toBe(false);
+    // Пользователю выдаётся расшифрованный и сверенный по sha256 файл.
+    expect(createHash('sha256').update(await (await a.get(`/api/documents/${id}/download`)).body()).digest('hex'))
+      .toBe(createHash('sha256').update(bytes).digest('hex'));
     expect((await b.get(`/api/documents/${id}`)).status()).toBe(404);
     expect((await b.get(`/api/documents/${id}/download`)).status()).toBe(404);
     expect((await b.post(`/api/documents/${id}/extract`)).status()).toBe(404);
