@@ -8,6 +8,7 @@ import {
   FileSearch,
   FileText,
   PackageSearch,
+  TrendingUp,
   Upload,
 } from 'lucide-react';
 import { prisma } from '@/lib/db';
@@ -169,6 +170,13 @@ export default async function TenderPage({
             >
               <Banknote className="size-4" aria-hidden />
               Экономика
+            </ButtonLink>
+            <ButtonLink
+              href={`/tenders/${tender.id}/pricing`}
+              variant="outline"
+            >
+              <TrendingUp className="size-4" aria-hidden />
+              Ценовая стратегия
             </ButtonLink>
             <ButtonLink href={`/tenders/${tender.id}/report`}>
               Отчёт по тендеру

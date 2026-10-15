@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireRole } from '@/lib/auth/guard';
+import { canManageUsers, requireSession } from '@/lib/auth/guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatusNotice } from '@/components/ui/status-notice';
 
 export const metadata: Metadata = { title: 'Журнал операций' };
 
@@ -30,8 +31,27 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export default async function AuditPage() {
-  // Журнал доступен администраторам и владельцу.
-  const session = await requireRole('ADMIN');
+  const session = await requireSession();
+
+  // Журнал доступен администраторам и владельцу. Остальным показываем
+  // понятное сообщение, а не ошибку.
+  if (!canManageUsers(session.role)) {
+    return (
+      <>
+        <PageHeader
+          title="Журнал операций"
+          description="Раздел доступен администратору и владельцу компании."
+        />
+        <div className="flex-1 px-5 py-5 sm:px-7">
+          <StatusNotice severity="INFO" title="Недостаточно прав">
+            Журнал операций содержит сведения о действиях всех пользователей
+            компании, поэтому доступен только администратору и владельцу.
+            Обратитесь к администратору вашей компании, если вам нужен доступ.
+          </StatusNotice>
+        </div>
+      </>
+    );
+  }
 
   const logs = await prisma.auditLog.findMany({
     where: { companyId: session.companyId },

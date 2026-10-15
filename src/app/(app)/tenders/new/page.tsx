@@ -1,13 +1,32 @@
 import type { Metadata } from 'next';
-import { requireWriteAccess } from '@/lib/auth/guard';
+import { canWrite, requireSession } from '@/lib/auth/guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatusNotice } from '@/components/ui/status-notice';
 import { TenderForm } from './tender-form';
 
 export const metadata: Metadata = { title: 'Новый анализ' };
 
 export default async function NewTenderPage() {
-  await requireWriteAccess();
+  const session = await requireSession();
+
+  if (!canWrite(session.role)) {
+    return (
+      <>
+        <PageHeader
+          title="Новый анализ тендера"
+          description="Создание тендеров доступно аналитику и выше."
+        />
+        <div className="flex-1 px-5 py-5 sm:px-7">
+          <StatusNotice severity="INFO" title="Недостаточно прав">
+            У роли «Наблюдатель» нет прав на создание тендеров. Вы можете
+            просматривать тендеры, расчёты и отчёты компании. За расширением
+            прав обратитесь к администратору.
+          </StatusNotice>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
