@@ -32,7 +32,12 @@ export function StatTile({
         </p>
         {icon ? <span className="text-ink-300">{icon}</span> : null}
       </div>
-      <p className={cn('mt-2 text-[22px] font-semibold tabular tracking-tight', valueTone)}>
+      <p
+        className={cn(
+          'mt-2 break-words text-[19px] font-semibold tabular tracking-tight sm:text-[22px]',
+          valueTone,
+        )}
+      >
         {value}
       </p>
       {hint ? (

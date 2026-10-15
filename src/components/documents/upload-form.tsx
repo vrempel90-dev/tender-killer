@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Field, Select } from '@/components/ui/field';
 import { StatusNotice } from '@/components/ui/status-notice';
 import { DOCUMENT_KIND_LABELS } from '@/lib/tender-labels';
@@ -90,7 +89,7 @@ export function DocumentUploadForm({
 
         <Field label="Файл" help={`PDF, DOCX, XLSX. До ${maxMb} МБ.`}>
           {(id) => (
-            <div className="flex gap-2">
+            <div className="flex min-w-0 flex-wrap gap-2">
               <input
                 ref={inputRef}
                 id={id}
@@ -101,12 +100,14 @@ export function DocumentUploadForm({
                   const file = e.target.files?.[0];
                   if (file) void upload(file);
                 }}
-                className="h-10 flex-1 cursor-pointer rounded-lg border border-ink-200 bg-white px-3 py-2 text-[13px] file:mr-3 file:rounded file:border-0 file:bg-ink-100 file:px-2.5 file:py-1 file:text-[12.5px] file:font-medium file:text-ink-700 hover:file:bg-ink-200"
+                className="h-10 w-full min-w-0 flex-1 cursor-pointer rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-[12.5px] file:mr-2 file:rounded file:border-0 file:bg-ink-100 file:px-2 file:py-1 file:text-[12px] file:font-medium file:text-ink-700 hover:file:bg-ink-200"
               />
-              <Button type="button" loading={uploading} disabled variant="outline">
-                <Upload className="size-4" aria-hidden />
-                {uploading ? 'Чтение…' : 'Готов'}
-              </Button>
+              {uploading ? (
+                <span className="flex items-center gap-1.5 whitespace-nowrap text-[12.5px] text-ink-500">
+                  <Upload className="size-3.5 animate-pulse" aria-hidden />
+                  Чтение файла…
+                </span>
+              ) : null}
             </div>
           )}
         </Field>

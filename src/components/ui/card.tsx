@@ -8,7 +8,10 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-xl border border-ink-200/80 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]',
+        // min-w-0 обязателен: иначе внутри grid или flex карточка растягивается
+        // содержимым, и вложенная прокрутка таблиц не работает.
+        'min-w-0 rounded-xl border border-ink-200/80 bg-white',
+        'shadow-[0_1px_2px_rgba(16,24,40,0.04)]',
         className,
       )}
       {...props}

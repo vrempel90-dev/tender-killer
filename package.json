@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "prisma generate && next build",
-    "start": "next start --port 3000",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
@@ -21,7 +21,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "verify": "npm run typecheck && npm run lint && npm run test"
+    "verify": "npm run typecheck && npm run lint && npm run test",
+    "postbuild": "node scripts/copy-static.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

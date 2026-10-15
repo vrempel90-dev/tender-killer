@@ -223,7 +223,7 @@ export function MarketPanel({
                   </p>
                 ) : (
                   <div className="max-h-[420px] overflow-auto scrollbar-slim">
-                    <table className="w-full text-[13px]">
+                    <table className="w-full min-w-[520px] text-[13px]">
                       <thead className="sticky top-0 bg-white">
                         <tr className="border-b border-ink-100 text-left text-[12px] uppercase tracking-wide text-ink-400">
                           <th className="px-5 py-2.5 font-medium">Поставщик</th>
@@ -284,7 +284,7 @@ export function MarketPanel({
                   </p>
                 ) : (
                   <div className="max-h-[420px] overflow-auto scrollbar-slim">
-                    <table className="w-full text-[13px]">
+                    <table className="w-full min-w-[520px] text-[13px]">
                       <thead className="sticky top-0 bg-white">
                         <tr className="border-b border-ink-100 text-left text-[12px] uppercase tracking-wide text-ink-400">
                           <th className="px-5 py-2.5 font-medium">Заказчик</th>
@@ -347,7 +347,7 @@ export function MarketPanel({
                   key={batch.batchId}
                   className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-200 px-3.5 py-2.5"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-medium text-ink-900">
                       {batch.sourceRef}
                     </p>

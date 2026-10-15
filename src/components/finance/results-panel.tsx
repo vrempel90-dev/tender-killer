@@ -125,7 +125,7 @@ export function ResultsPanel({ result }: { result: FinanceResult }) {
           <CardTitle>Структура результата</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <table className="w-full text-[13px]">
+          <table className="w-full table-fixed text-[13px]">
             <tbody>
               <Row label="Выручка с НДС (сумма договора)" value={result.revenue.grossMinor} />
               <Row
@@ -251,7 +251,7 @@ export function ResultsPanel({ result }: { result: FinanceResult }) {
           <CardTitle>Расчёты по НДС</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <table className="w-full text-[13px]">
+          <table className="w-full table-fixed text-[13px]">
             <tbody>
               <Row label="НДС с реализации (исходящий)" value={result.vat.outputMinor} />
               <Row label="Входящий НДС по затратам" value={result.costs.vatInputTotalMinor} />
@@ -336,7 +336,7 @@ function Row({
     >
       <td
         className={cn(
-          'px-5 py-2.5',
+          'break-words px-5 py-2.5',
           strong ? 'font-semibold text-ink-900' : 'text-ink-600',
           muted && 'text-ink-400',
         )}
@@ -348,7 +348,7 @@ function Row({
       </td>
       <td
         className={cn(
-          'px-5 py-2.5 text-right tabular',
+          'whitespace-nowrap px-5 py-2.5 text-right tabular',
           strong ? 'font-semibold text-ink-900' : 'text-ink-700',
           value < 0 && !strong && 'text-ink-600',
         )}

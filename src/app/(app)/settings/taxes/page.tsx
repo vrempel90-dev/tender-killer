@@ -59,7 +59,7 @@ export default async function TaxesPage() {
           </CardHeader>
           <CardBody className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-[13px]">
+              <table className="w-full min-w-[760px] text-[13px]">
                 <thead>
                   <tr className="border-b border-ink-100 text-left text-[12px] uppercase tracking-wide text-ink-400">
                     <th className="px-5 py-2.5 font-medium">Норматив</th>
@@ -150,7 +150,8 @@ export default async function TaxesPage() {
             <CardTitle>Как режим влияет на расчёт</CardTitle>
           </CardHeader>
           <CardBody className="p-0">
-            <table className="w-full text-[13px]">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-[13px]">
               <thead>
                 <tr className="border-b border-ink-100 text-left text-[12px] uppercase tracking-wide text-ink-400">
                   <th className="px-5 py-2.5 font-medium">Режим</th>
@@ -180,6 +181,7 @@ export default async function TaxesPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <p className="border-t border-ink-100 px-5 py-3 text-[12.5px] leading-relaxed text-ink-500">
               На режимах с базой «оборот» налог начисляется независимо от
               прибыли: убыточная сделка всё равно создаёт налоговое

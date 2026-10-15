@@ -34,4 +34,12 @@ export default tseslint.config(
     files: ['**/*.test.ts', '**/*.test.tsx', 'prisma/seed.ts'],
     rules: { 'no-console': 'off' },
   },
+  {
+    // Node.js-скрипты сборки: глобальные process и console здесь ожидаемы.
+    files: ['scripts/**/*.mjs', 'prisma/seed.ts'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly' },
+    },
+    rules: { 'no-console': 'off' },
+  },
 );

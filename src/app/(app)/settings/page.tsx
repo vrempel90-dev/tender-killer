@@ -167,7 +167,8 @@ export default async function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardBody className="p-0">
-            <table className="w-full text-[13px]">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] text-[13px]">
               <thead>
                 <tr className="border-b border-ink-100 text-left text-[12px] uppercase tracking-wide text-ink-400">
                   <th className="px-5 py-2.5 font-medium">Пользователь</th>
@@ -203,6 +204,7 @@ export default async function SettingsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <p className="border-t border-ink-100 px-5 py-3 text-[12.5px] text-ink-500">
               Приглашение новых пользователей будет добавлено отдельно. Сейчас
               учётную запись создаёт владелец при регистрации компании. Роли{' '}

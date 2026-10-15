@@ -200,7 +200,7 @@ export default async function DashboardPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-[13px]">
+                  <table className="w-full min-w-[620px] text-[13px]">
                     <thead>
                       <tr className="border-b border-ink-100 text-left text-[12px] uppercase tracking-wide text-ink-400">
                         <th className="px-5 py-2.5 font-medium">Тендер</th>
@@ -305,9 +305,9 @@ export default async function DashboardPage() {
                       <Link
                         key={run.id}
                         href={`/tenders/${run.tenderId}/compliance`}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-ink-100 px-3 py-2.5 hover:border-ink-200 hover:bg-ink-50/60"
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ink-100 px-3 py-2.5 hover:border-ink-200 hover:bg-ink-50/60"
                       >
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] font-medium text-ink-900">
                             {run.tender.title}
                           </p>

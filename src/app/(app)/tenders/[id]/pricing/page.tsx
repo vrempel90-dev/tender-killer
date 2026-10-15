@@ -178,7 +178,7 @@ export default async function PricingPage({
             </CardHeader>
             <CardBody className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-[13px]">
+                <table className="w-full min-w-[720px] text-[13px]">
                   <thead>
                     <tr className="border-b border-ink-100 text-left text-[12px] uppercase tracking-wide text-ink-400">
                       <th className="px-5 py-2.5 font-medium">Вариант</th>

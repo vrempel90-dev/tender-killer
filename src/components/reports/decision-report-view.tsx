@@ -166,7 +166,7 @@ export function DecisionReportView({
               Финансовый расчёт не сохранён — экономика сделки не оценена.
             </StatusNotice>
           ) : (
-            <table className="w-full text-[13px]">
+            <table className="w-full table-fixed text-[13px]">
               <tbody>
                 <Row label="Цена предложения (с НДС)" value={formatMinorKzt(f.bidPriceMinor)} />
                 <Row
@@ -259,12 +259,13 @@ export function DecisionReportView({
             <CardTitle>Сценарии</CardTitle>
           </CardHeader>
           <CardBody className="p-0">
-            <table className="w-full text-[13px]">
+            <div className="overflow-x-auto">
+            <table className="w-full table-fixed text-[13px]">
               <thead>
                 <tr className="border-b border-ink-100 text-left text-[12px] uppercase tracking-wide text-ink-400">
-                  <th className="px-5 py-2.5 font-medium">Сценарий</th>
-                  <th className="px-5 py-2.5 text-right font-medium">Чистая прибыль</th>
-                  <th className="px-5 py-2.5 text-right font-medium">
+                  <th className="px-4 py-2.5 font-medium">Сценарий</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Прибыль</th>
+                  <th className="px-4 py-2.5 text-right font-medium">
                     Оборотные средства
                   </th>
                 </tr>
@@ -272,23 +273,26 @@ export function DecisionReportView({
               <tbody>
                 {f.scenarios.map((s) => (
                   <tr key={s.label} className="border-b border-ink-50 last:border-0">
-                    <td className="px-5 py-2.5 text-ink-700">{s.label}</td>
+                    <td className="break-words px-4 py-2.5 text-ink-700">
+                      {s.label}
+                    </td>
                     <td
                       className={
                         s.netProfitMinor >= 0
-                          ? 'px-5 py-2.5 text-right tabular text-emerald-700'
-                          : 'px-5 py-2.5 text-right tabular text-red-700'
+                          ? 'break-words px-4 py-2.5 text-right tabular text-emerald-700'
+                          : 'break-words px-4 py-2.5 text-right tabular text-red-700'
                       }
                     >
                       {formatMinorKzt(s.netProfitMinor)}
                     </td>
-                    <td className="px-5 py-2.5 text-right tabular text-ink-600">
+                    <td className="break-words px-4 py-2.5 text-right tabular text-ink-600">
                       {formatMinorKzt(s.workingCapitalMinor)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </CardBody>
         </Card>
       ) : null}
@@ -480,7 +484,7 @@ export function DecisionReportView({
           <CardTitle>Закупочная себестоимость</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <table className="w-full text-[13px]">
+          <table className="w-full table-fixed text-[13px]">
             <tbody>
               <Row
                 label="Позиций в закупке"
@@ -554,8 +558,8 @@ function Row({
       <td
         className={
           strong
-            ? 'px-5 py-2.5 font-semibold text-ink-900'
-            : 'px-5 py-2.5 text-ink-600'
+            ? 'break-words px-4 py-2.5 font-semibold text-ink-900'
+            : 'break-words px-4 py-2.5 text-ink-600'
         }
       >
         {label}
@@ -563,8 +567,8 @@ function Row({
       <td
         className={
           strong
-            ? 'px-5 py-2.5 text-right tabular font-semibold text-ink-900'
-            : 'px-5 py-2.5 text-right tabular text-ink-800'
+            ? 'break-words px-4 py-2.5 text-right tabular font-semibold text-ink-900'
+            : 'break-words px-4 py-2.5 text-right tabular text-ink-800'
         }
       >
         {value}
