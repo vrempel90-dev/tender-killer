@@ -1,0 +1,32 @@
+import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/db';
+import { getCurrentSession } from '@/lib/auth/session';
+import { ROLE_LABELS, type Role } from '@/lib/auth/guard';
+import { isAiConfigured } from '@/lib/env';
+import { Sidebar } from '@/components/layout/sidebar';
+
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await getCurrentSession();
+  if (!session) redirect('/login');
+
+  const company = await prisma.company.findUnique({
+    where: { id: session.companyId },
+    select: { name: true },
+  });
+
+  return (
+    <div className="flex min-h-dvh flex-col lg:flex-row">
+      <Sidebar
+        companyName={company?.name ?? 'Компания'}
+        userName={session.name}
+        roleLabel={ROLE_LABELS[session.role as Role] ?? session.role}
+        aiConfigured={isAiConfigured()}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+    </div>
+  );
+}

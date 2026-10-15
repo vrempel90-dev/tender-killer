@@ -1,0 +1,574 @@
+// TENDER KILLER — схема данных.
+// Мультитенантность: все пользовательские сущности привязаны к companyId.
+// Доступ проверяется на сервере (см. src/lib/auth/guard.ts), а не только в UI.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────── Тенанты и пользователи ───────────────────────────
+
+enum UserRole {
+  OWNER // владелец компании: всё, включая управление пользователями
+  ADMIN // администратор: всё, кроме удаления компании
+  ANALYST // аналитик: создание и редактирование тендеров
+  VIEWER // наблюдатель: только чтение
+}
+
+/// Налоговый режим компании-поставщика. Влияет на расчёт НДС и налога на доход.
+enum TaxRegime {
+  GENERAL_VAT // общеустановленный режим, плательщик НДС
+  GENERAL_NO_VAT // общеустановленный режим, не плательщик НДС
+  SIMPLIFIED // упрощённая декларация (СНР)
+  RETAIL_TAX // розничный налог
+  INDIVIDUAL_ENTREPRENEUR // ИП на общеустановленном режиме
+}
+
+model Company {
+  id        String    @id @default(cuid())
+  name      String
+  bin       String? // БИН/ИИН
+  taxRegime TaxRegime @default(GENERAL_VAT)
+  isVatPayer Boolean  @default(true)
+  /// Признак того, что компания — субъект малого предпринимательства
+  isSmallBusiness Boolean @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users            User[]
+  tenders          Tender[]
+  documents        Document[]
+  auditLogs        AuditLog[]
+  supplierQuotes   SupplierQuote[]
+  reports          Report[]
+  historicalTenders HistoricalTender[]
+
+  @@map("companies")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(OWNER)
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  sessions  Session[]
+  auditLogs AuditLog[]
+
+  @@index([companyId])
+  @@map("users")
+}
+
+/// Серверный реестр сессий: позволяет отзывать выданные cookie.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// SHA-256 от значения cookie — сырой токен в БД не хранится
+  tokenHash String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String // например DOCUMENT_UPLOAD, TENDER_DELETE, AI_COMPLIANCE_RUN
+  entity    String? // тип сущности
+  entityId  String?
+  ipAddress String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────── Карточка тендера ──────────────────────────────
+
+enum TenderStage {
+  DRAFT // черновик, данные вносятся
+  ANALYSIS // идёт анализ
+  DECIDED_GO // решение: участвуем
+  DECIDED_NO_GO // решение: не участвуем
+  SUBMITTED // заявка подана
+  WON
+  LOST
+  ARCHIVED
+}
+
+enum ProcurementType {
+  OPEN_TENDER // открытый конкурс
+  REQUEST_FOR_QUOTATIONS // запрос ценовых предложений
+  SINGLE_SOURCE // из одного источника
+  AUCTION // аукцион
+  CORPORATE // корпоративная закупка
+  OTHER
+}
+
+model Tender {
+  id              String          @id @default(cuid())
+  companyId       String
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title           String
+  /// Номер объявления/лота на портале закупок
+  externalNumber  String?
+  sourceUrl       String?
+  customerName    String?
+  customerBin     String?
+  procurementType ProcurementType @default(OPEN_TENDER)
+  stage           TenderStage     @default(DRAFT)
+  /// Начальная (максимальная) цена закупки, тиын (целое, чтобы не терять точность)
+  startPriceMinor BigInt?
+  currency        String          @default("KZT")
+  submissionDeadline DateTime?
+  deliveryDeadline   DateTime?
+  region          String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  documents        Document[]
+  requirements     Requirement[]
+  lineItems        LineItem[]
+  financialModels  FinancialModel[]
+  complianceRuns   ComplianceRun[]
+  contractAnalyses ContractAnalysis[]
+  supplierQuotes   SupplierQuote[]
+  reports          Report[]
+
+  @@index([companyId, stage])
+  @@map("tenders")
+}
+
+// ──────────────────────────── Документы и извлечение ──────────────────────────
+
+enum DocumentKind {
+  TECHNICAL_SPEC // техническое задание
+  CONTRACT_DRAFT // проект договора
+  TENDER_NOTICE // объявление/условия закупки
+  SUPPLIER_QUOTE // коммерческое предложение поставщика
+  PRICE_LIST // прайс-лист
+  OWN_CERTIFICATE // собственный документ поставщика (лицензия, сертификат)
+  OTHER
+}
+
+enum ExtractionStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  PARTIAL // часть содержимого не прочитана (например, страницы-сканы)
+  FAILED
+}
+
+model Document {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tenderId    String?
+  tender      Tender?      @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  kind        DocumentKind @default(OTHER)
+  originalName String
+  /// Относительный путь внутри STORAGE_DIR. Файлы вне репозитория.
+  storagePath String
+  mimeType    String
+  sizeBytes   Int
+  /// SHA-256 содержимого — дедупликация и доказуемость неизменности
+  sha256      String
+  uploadedById String?
+  createdAt   DateTime     @default(now())
+  deletedAt   DateTime?
+
+  extraction  DocumentExtraction?
+  requirements Requirement[]
+  findings    ComplianceFinding[]
+  quotes      SupplierQuote[]
+  contractAnalyses ContractAnalysis[]
+
+  @@index([companyId, tenderId])
+  @@index([sha256])
+  @@map("documents")
+}
+
+model DocumentExtraction {
+  id         String           @id @default(cuid())
+  documentId String           @unique
+  document   Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  status     ExtractionStatus @default(PENDING)
+  /// Полный текст с разметкой страниц (--- стр. N ---)
+  text       String?
+  pageCount  Int?
+  /// Количество страниц, из которых не удалось извлечь текстовый слой
+  unreadablePages Int[]       @default([])
+  /// Таблицы в виде массива { page, rows: string[][] }
+  tables     Json?
+  /// Технические предупреждения парсера
+  warnings   String[]         @default([])
+  engine     String? // pdfjs | mammoth | exceljs
+  charCount  Int?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@map("document_extractions")
+}
+
+// ───────────────────────── Требования закупки (модуль 2) ──────────────────────
+
+enum RequirementCategory {
+  DOCUMENT // требуется документ
+  TECHNICAL // техническая характеристика
+  QUALIFICATION // квалификационное требование
+  DEADLINE // срок
+  FINANCIAL // финансовое условие (обеспечение, оплата)
+  OTHER
+}
+
+enum RiskLevel {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+model Requirement {
+  id          String              @id @default(cuid())
+  tenderId    String
+  tender      Tender              @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  /// Документ-источник требования
+  documentId  String?
+  document    Document?           @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  category    RequirementCategory @default(OTHER)
+  /// Формулировка требования как в документе
+  text        String
+  /// Короткое название
+  label       String?
+  pageNumber  Int?
+  /// Точная цитата из документа (для проверяемости)
+  sourceQuote String?
+  isMandatory Boolean             @default(true)
+  /// Подтверждено ли пользователем (AI-извлечение требует подтверждения)
+  confirmedByUser Boolean         @default(false)
+  /// Источник: AI | MANUAL
+  origin      String              @default("AI")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  findings ComplianceFinding[]
+
+  @@index([tenderId])
+  @@map("requirements")
+}
+
+enum ComplianceStatus {
+  CONFIRMED // Подтверждено
+  NOT_FOUND // Не обнаружено
+  MISMATCH // Несоответствие
+  NEEDS_REVIEW // Требует проверки
+}
+
+model ComplianceRun {
+  id        String   @id @default(cuid())
+  tenderId  String
+  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+  /// Модель AI и версия промпта — для воспроизводимости
+  aiModel   String?
+  promptVersion String?
+  status    String   @default("RUNNING") // RUNNING | SUCCEEDED | FAILED
+  error     String?
+  /// Документы, попавшие в анализ (id), и те, что не удалось прочитать
+  analyzedDocumentIds String[] @default([])
+  unreadableDocumentIds String[] @default([])
+  tokenUsage Json?
+
+  findings ComplianceFinding[]
+
+  @@index([tenderId])
+  @@map("compliance_runs")
+}
+
+model ComplianceFinding {
+  id            String           @id @default(cuid())
+  runId         String
+  run           ComplianceRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  requirementId String?
+  requirement   Requirement?     @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  /// Документ, в котором искали/нашли подтверждение
+  documentId    String?
+  document      Document?        @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  /// Текст исходного требования (денормализовано: отчёт должен быть читаем даже
+  /// если требование позже изменили)
+  requirementText String
+  documentName  String?
+  pageNumber    Int?
+  evidenceQuote String?
+  status        ComplianceStatus
+  riskLevel     RiskLevel        @default(MEDIUM)
+  recommendation String
+  /// Пояснение, почему AI не смог сделать вывод (например, страница — скан)
+  uncertaintyReason String?
+  createdAt     DateTime         @default(now())
+
+  @@index([runId])
+  @@map("compliance_findings")
+}
+
+// ─────────────────── Позиции и снабжение (модуль 4) ──────────────────────────
+
+model LineItem {
+  id          String   @id @default(cuid())
+  tenderId    String
+  tender      Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  position    Int      @default(0)
+  name        String
+  /// Технические характеристики как требует заказчик
+  specification String?
+  unit        String   @default("шт")
+  quantity    Decimal  @db.Decimal(18, 4)
+  /// Цена за единицу по объявлению закупки, тиын
+  customerUnitPriceMinor BigInt?
+  pageNumber  Int?
+  sourceQuote String?
+  origin      String   @default("AI") // AI | MANUAL
+  confirmedByUser Boolean @default(false)
+  /// Выбранное предложение поставщика (подтверждённая закупочная цена)
+  selectedQuoteItemId String? @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quoteItems SupplierQuoteItem[] @relation("QuoteItemToLineItem")
+  selectedQuoteItem SupplierQuoteItem? @relation("LineItemSelectedQuote", fields: [selectedQuoteItemId], references: [id], onDelete: SetNull)
+
+  @@index([tenderId])
+  @@map("line_items")
+}
+
+enum QuoteVerification {
+  VERIFIED // есть документ КП / счёт от поставщика
+  UNVERIFIED // введено вручную без подтверждения
+}
+
+model SupplierQuote {
+  id           String            @id @default(cuid())
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tenderId     String
+  tender       Tender            @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  supplierName String
+  supplierBin  String?
+  contact      String?
+  /// Документ-основание (загруженное КП или прайс)
+  documentId   String?
+  document     Document?         @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  verification QuoteVerification @default(UNVERIFIED)
+  /// Валюта КП; при отличии от KZT нужен курс
+  currency     String            @default("KZT")
+  fxRate       Decimal?          @db.Decimal(18, 6)
+  /// Включает ли цена НДС
+  pricesIncludeVat Boolean       @default(true)
+  validUntil   DateTime?
+  deliveryDays Int?
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  items SupplierQuoteItem[]
+
+  @@index([tenderId])
+  @@map("supplier_quotes")
+}
+
+model SupplierQuoteItem {
+  id         String   @id @default(cuid())
+  quoteId    String
+  quote      SupplierQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  /// Сопоставленная позиция ТЗ (может отсутствовать, если сопоставление не сделано)
+  lineItemId String?
+  lineItem   LineItem? @relation("QuoteItemToLineItem", fields: [lineItemId], references: [id], onDelete: SetNull)
+  name       String
+  unit       String   @default("шт")
+  quantity   Decimal  @db.Decimal(18, 4)
+  /// Цена за единицу в валюте КП, в минорных единицах
+  unitPriceMinor BigInt
+  /// Соответствие техническим требованиям: оценка пользователя или AI
+  specMatch  String   @default("UNKNOWN") // MATCH | PARTIAL | MISMATCH | UNKNOWN
+  specMatchNote String?
+  leadTimeDays Int?
+  createdAt  DateTime @default(now())
+
+  selectedForLineItem LineItem? @relation("LineItemSelectedQuote")
+
+  @@index([quoteId])
+  @@map("supplier_quote_items")
+}
+
+// ───────────────────── Финансовая модель (модуль 1) ──────────────────────────
+
+model FinancialModel {
+  id        String   @id @default(cuid())
+  tenderId  String
+  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  name      String   @default("Базовый расчёт")
+  /// Входные данные расчёта (валидируются zod-схемой FinanceInputSchema)
+  inputs    Json
+  /// Снимок результата на момент сохранения (валидируется FinanceResultSchema)
+  result    Json?
+  /// Версия движка расчёта — чтобы отличать результаты разных версий формул
+  engineVersion String @default("1.0.0")
+  /// Версия налогового конфига, с которой считали
+  taxConfigVersion String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenderId])
+  @@map("financial_models")
+}
+
+/// Конфигурируемые налоговые ставки и нормативы с источником и датой актуальности.
+/// Правило проекта: ни одна ставка не «вшита» в код без источника.
+model TaxRateConfig {
+  id          String   @id @default(cuid())
+  /// Машинный ключ, например VAT_STANDARD, CIT_STANDARD, SIMPLIFIED_RATE
+  key         String
+  label       String
+  /// Ставка в процентах (12.000 = 12%)
+  ratePercent Decimal  @db.Decimal(9, 4)
+  /// Официальный источник нормы
+  sourceTitle String
+  sourceUrl   String?
+  /// Дата, с которой норма действует
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, effectiveFrom])
+  @@map("tax_rate_configs")
+}
+
+// ──────────────────── Анализ договора (модуль 5) ─────────────────────────────
+
+model ContractAnalysis {
+  id         String   @id @default(cuid())
+  tenderId   String
+  tender     Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  status     String   @default("RUNNING") // RUNNING | SUCCEEDED | FAILED
+  aiModel    String?
+  promptVersion String?
+  error      String?
+  /// Сводка по извлечённым условиям (сроки оплаты, аванс, гарантии и т.д.)
+  extractedTerms Json?
+  tokenUsage Json?
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+
+  risks ContractRisk[]
+
+  @@index([tenderId])
+  @@map("contract_analyses")
+}
+
+model ContractRisk {
+  id         String    @id @default(cuid())
+  analysisId String
+  analysis   ContractAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  /// Категория: PAYMENT_TERMS, ADVANCE, DELIVERY, PENALTY, GUARANTEE,
+  /// ACCEPTANCE, TERMINATION, EXTRA_COSTS, SECURITY
+  category   String
+  title      String
+  /// Пункт договора
+  clauseRef  String?
+  pageNumber Int?
+  sourceQuote String?
+  riskLevel  RiskLevel @default(MEDIUM)
+  explanation String
+  recommendation String?
+  /// Количественная оценка влияния на экономику, тиын (если поддаётся расчёту)
+  financialImpactMinor BigInt?
+  /// Как учесть в финмодели (машинный ключ поля, например paymentDelayDays)
+  financeHint Json?
+  /// Требуется проверка юриста
+  needsLawyerReview Boolean @default(false)
+  createdAt  DateTime  @default(now())
+
+  @@index([analysisId])
+  @@map("contract_risks")
+}
+
+// ─────────────────── Историческая аналитика (модуль 3) ───────────────────────
+
+/// Импортированные завершённые закупки. Заполняется ТОЛЬКО из файлов/открытых
+/// данных, загруженных пользователем. Приложение не генерирует эти записи само.
+model HistoricalTender {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  externalNumber String?
+  title         String
+  customerName  String?
+  customerBin   String?
+  region        String?
+  /// Начальная цена, тиын
+  startPriceMinor BigInt?
+  /// Итоговая цена договора, тиын
+  finalPriceMinor BigInt?
+  winnerName    String?
+  winnerBin     String?
+  participantsCount Int?
+  awardedAt     DateTime?
+  procurementType ProcurementType @default(OTHER)
+  /// Источник данных: имя файла или URL открытых данных
+  sourceRef     String
+  /// Дата импорта
+  importedAt    DateTime @default(now())
+  importBatchId String?
+
+  @@index([companyId])
+  @@index([companyId, customerBin])
+  @@map("historical_tenders")
+}
+
+// ─────────────────────────────── Отчёты ──────────────────────────────────────
+
+model Report {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tenderId  String
+  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  kind      String   @default("DECISION") // DECISION | COMPLIANCE | FINANCE
+  /// Снимок данных отчёта (всё, что показано в PDF)
+  payload   Json
+  /// Путь к сгенерированному PDF внутри STORAGE_DIR
+  storagePath String?
+  createdAt DateTime @default(now())
+
+  @@index([companyId, tenderId])
+  @@map("reports")
+}

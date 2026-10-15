@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-tender_killer}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      # Прокинут для удобства отладки; в продакшене порт можно закрыть.
+      - '5432:5432'
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: >-
+        postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET обязателен, минимум 32 символа}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
+      STORAGE_DIR: /app/storage
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-26214400}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      NODE_ENV: production
+    ports:
+      - '3000:3000'
+    volumes:
+      # Документы пользователей хранятся в томе, а не в образе и не в Git
+      - storage-data:/app/storage
+    # Миграции и справочник ставок применяются перед запуском приложения
+    command: >-
+      sh -c "node_modules/.bin/prisma migrate deploy &&
+             node_modules/.bin/tsx prisma/seed.ts &&
+             node server.js"
+
+volumes:
+  db-data:
+  storage-data:
