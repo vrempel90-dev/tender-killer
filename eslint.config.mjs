@@ -6,6 +6,10 @@ export default tseslint.config(
   {
     ignores: [
       '.next/**',
+      '.workers/**',
+      'playwright-report/**',
+      'test-results/**',
+      'data/**',
       'node_modules/**',
       'coverage/**',
       'next-env.d.ts',

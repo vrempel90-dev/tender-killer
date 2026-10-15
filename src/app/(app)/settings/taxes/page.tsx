@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { ExternalLink } from 'lucide-react';
-import { prisma } from '@/lib/db';
+import { getCompanyTaxRates } from '@/lib/finance/company-tax';
 import { requireSession } from '@/lib/auth/guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -13,9 +13,7 @@ export const metadata: Metadata = { title: 'Налоговые ставки' };
 
 export default async function TaxesPage() {
   const session = await requireSession();
-  const rates = await prisma.taxRateConfig.findMany({
-    orderBy: [{ key: 'asc' }, { effectiveFrom: 'desc' }],
-  });
+  const rates = await getCompanyTaxRates(session.companyId);
 
   const unverified = rates.filter((r) =>
     (r.notes ?? '').includes('ТРЕБУЕТ СВЕРКИ'),
@@ -133,7 +131,7 @@ export default async function TaxesPage() {
                           {needsCheck ? (
                             <Badge tone="caution">требует сверки</Badge>
                           ) : (
-                            <Badge tone="positive">сверено</Badge>
+                            <Badge tone="neutral">{rate.notes?.includes('USER_CONFIRMED') ? 'подтверждено компанией' : 'справочник'}</Badge>
                           )}
                         </td>
                       </tr>

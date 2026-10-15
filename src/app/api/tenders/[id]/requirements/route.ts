@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /**
  * Извлечение требований закупки из загруженных документов (AI)
  * и ручное управление списком требований.
@@ -54,7 +55,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const body = ExtractSchema.parse(await request.json());
+    const body = ExtractSchema.parse(await readJson(request));
 
     const tender = await prisma.tender.findFirst({
       where: { id, companyId: session.companyId },
@@ -150,7 +151,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const data = UpdateSchema.parse(await request.json());
+    const data = UpdateSchema.parse(await readJson(request));
 
     // Требование должно принадлежать тендеру этой компании.
     const requirement = await prisma.requirement.findFirst({

@@ -8,6 +8,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { RequestError } from '../security/request';
 
 export class AiNotConfiguredError extends Error {
   constructor() {
@@ -35,6 +36,9 @@ export function getAiClient(): Anthropic {
   const apiKey = (process.env.ANTHROPIC_API_KEY ?? '').trim();
   if (apiKey.length === 0) {
     throw new AiNotConfiguredError();
+  }
+  if (process.env.AI_EXTERNAL_TRANSFER_APPROVED !== 'true') {
+    throw new RequestError('Внешний AI отключён: требуется подтверждённое основание передачи данных и настройка AI_EXTERNAL_TRANSFER_APPROVED.', 503);
   }
   if (!client) {
     client = new Anthropic({ apiKey, maxRetries: 2, timeout: 180_000 });
@@ -76,6 +80,15 @@ export async function callStructured<T>(params: {
 }): Promise<StructuredCallResult<T>> {
   const anthropic = getAiClient();
   const model = getAiModel();
+  const [{ getCurrentSession }, { consumeQuota }] = await Promise.all([
+    import('../auth/session'), import('../security/quota'),
+  ]);
+  const session = await getCurrentSession();
+  if (!session) throw new RequestError('Требуется авторизация', 401);
+  const reservedTokens = Buffer.byteLength(params.system + params.userContent, 'utf8') + (params.maxTokens ?? 8000);
+  await consumeQuota('ai-daily-calls', session.companyId, 20, 86400);
+  await consumeQuota('ai-platform-tokens', 'platform', Number(process.env.AI_DAILY_TOKEN_BUDGET ?? 0), 86400, reservedTokens);
+  await consumeQuota('ai-company-tokens', session.companyId, Number(process.env.AI_COMPANY_DAILY_TOKEN_BUDGET ?? 0), 86400, reservedTokens);
 
   const response = await anthropic.messages.create({
     model,

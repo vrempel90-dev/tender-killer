@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /**
  * Коммерческие предложения поставщиков.
  *
@@ -85,7 +86,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const data = CreateQuoteSchema.parse(await request.json());
+    const data = CreateQuoteSchema.parse(await readJson(request));
 
     const tender = await prisma.tender.findFirst({
       where: { id, companyId: session.companyId },

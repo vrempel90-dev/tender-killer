@@ -35,6 +35,10 @@ pnpm-debug.log*
 
 # тесты и покрытие
 /coverage
+/.workers/
+/test-results/
+/playwright-report/
+/data/
 /.vitest
 
 # Prisma

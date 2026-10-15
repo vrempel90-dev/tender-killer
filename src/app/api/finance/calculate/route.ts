@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /**
  * Расчёт финансовой модели. Выполняется на сервере, чтобы движок и налоговая
  * конфигурация были единственным источником истины (клиент не считает сам).
@@ -10,6 +11,8 @@ import { calculateFinance } from '@/lib/finance/engine';
 import { calculateAllScenarios } from '@/lib/finance/scenarios';
 import { FinanceInputSchema } from '@/lib/finance/schema';
 import type { FinanceInput } from '@/lib/finance/types';
+import { canonicalFinanceInput } from '@/lib/finance/company-tax';
+import { consumeQuota } from '@/lib/security/quota';
 
 const RequestSchema = z.object({
   input: FinanceInputSchema,
@@ -19,9 +22,10 @@ const RequestSchema = z.object({
 export async function POST(request: Request) {
   try {
     // Расчёт не меняет данные, но доступен только авторизованным.
-    await requireSession();
-    const { input, withScenarios } = RequestSchema.parse(await request.json());
-    const typed = input as FinanceInput;
+    const session = await requireSession();
+    await consumeQuota('finance', session.companyId, 120, 60);
+    const { input, withScenarios } = RequestSchema.parse(await readJson(request));
+    const typed = await canonicalFinanceInput(session.companyId, input as FinanceInput);
 
     const result = calculateFinance(typed);
     const scenarios = withScenarios ? calculateAllScenarios(typed) : [];

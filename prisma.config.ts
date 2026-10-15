@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import path from 'node:path';
-import { defineConfig, env } from 'prisma/config';
+import { defineConfig } from 'prisma/config';
 
 /**
  * Конфигурация Prisma 7. Строка подключения живёт здесь (и в .env),
@@ -13,6 +13,6 @@ export default defineConfig({
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {
-    url: env('DATABASE_URL'),
+    url: process.env.DATABASE_URL ?? '',
   },
 });

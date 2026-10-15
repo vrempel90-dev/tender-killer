@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { AuthError } from './auth/guard';
+import { RequestError } from './security/request';
 
 export function jsonOk<T>(data: T, status = 200) {
   return NextResponse.json({ ok: true, data }, { status });
@@ -23,6 +24,8 @@ export function jsonError(
 
 /** Приводит любую ошибку обработчика к корректному HTTP-ответу. */
 export function handleApiError(error: unknown) {
+  if (error instanceof RequestError) return jsonError(error.message, error.status);
+  if (error instanceof RangeError) return jsonError('Финансовое значение выходит за допустимый диапазон', 422);
   if (error instanceof AuthError) {
     return jsonError(error.message, error.status);
   }
@@ -37,8 +40,10 @@ export function handleApiError(error: unknown) {
     );
   }
   if (error instanceof Error) {
-    console.error('Ошибка API:', error);
-    return jsonError(error.message, 500);
+    // Log a correlation ID and class, never raw SQL, document text or credentials.
+    const errorId = crypto.randomUUID();
+    console.error(JSON.stringify({ event: 'api_error', errorId, type: error.name }));
+    return jsonError('Внутренняя ошибка сервера', 500, { errorId });
   }
   console.error('Неизвестная ошибка API:', error);
   return jsonError('Внутренняя ошибка сервера', 500);

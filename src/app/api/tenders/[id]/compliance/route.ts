@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /** Запуск проверки документов заявки на соответствие требованиям. */
 
 import { z } from 'zod';
@@ -49,7 +50,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const body = RunSchema.parse(await request.json());
+    const body = RunSchema.parse(await readJson(request));
 
     const tender = await prisma.tender.findFirst({
       where: { id, companyId: session.companyId },

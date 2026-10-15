@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /** Сохранение и чтение финансовых моделей тендера. */
 
 import { z } from 'zod';
@@ -8,6 +9,7 @@ import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 import { calculateFinance, ENGINE_VERSION } from '@/lib/finance/engine';
 import { FinanceInputSchema } from '@/lib/finance/schema';
 import type { FinanceInput } from '@/lib/finance/types';
+import { canonicalFinanceInput } from '@/lib/finance/company-tax';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -47,15 +49,22 @@ export async function POST(request: Request, { params }: Params) {
     });
     if (!tender) return jsonError('Тендер не найден', 404);
 
-    const data = SaveSchema.parse(await request.json());
-    const input = data.input as FinanceInput;
+    const data = SaveSchema.parse(await readJson(request));
+    const input = await canonicalFinanceInput(session.companyId, data.input as FinanceInput);
+    if (data.modelId) {
+      const owned = await prisma.financialModel.findFirst({
+        where: { id: data.modelId, tenderId: id, tender: { companyId: session.companyId } },
+        select: { id: true },
+      });
+      if (!owned) return jsonError('Финансовая модель не найдена', 404);
+    }
 
     // Результат пересчитывается на сервере: клиентскому результату не доверяем.
     const result = calculateFinance(input);
 
     const model = data.modelId
       ? await prisma.financialModel.update({
-          where: { id: data.modelId },
+          where: { id: data.modelId, tenderId: id, tender: { companyId: session.companyId } },
           data: {
             name: data.name,
             inputs: input as unknown as object,

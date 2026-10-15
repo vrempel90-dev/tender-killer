@@ -31,6 +31,7 @@ if (!(await exists(standalone))) {
 for (const [from, to] of [
   [path.join(root, '.next', 'static'), path.join(standalone, '.next', 'static')],
   [path.join(root, 'public'), path.join(standalone, 'public')],
+  [path.join(root, '.workers'), path.join(standalone, '.workers')],
 ]) {
   if (!(await exists(from))) continue;
   // Каталог назначения удаляем: иначе cp вложит копию внутрь существующей.

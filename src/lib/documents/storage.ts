@@ -24,13 +24,13 @@ export const ALLOWED_UPLOAD_TYPES: Record<
     extensions: ['.xlsx'],
     label: 'XLSX',
   },
-  'application/vnd.ms-excel': { extensions: ['.xls', '.xlsx'], label: 'XLS' },
+  'application/vnd.ms-excel': { extensions: ['.xlsx'], label: 'XLS' },
 };
 
-export const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.xls'];
+export const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.xlsx'];
 
 export function storageRoot(): string {
-  return path.resolve(process.env.STORAGE_DIR ?? './storage');
+  return path.resolve(/* turbopackIgnore: true */ process.env.STORAGE_DIR ?? './storage');
 }
 
 export function maxUploadBytes(): number {
@@ -122,7 +122,7 @@ export async function saveFile(
 }
 
 export async function readStoredFile(relativePath: string): Promise<Buffer> {
-  return readFile(resolveStoragePath(relativePath));
+  return readFile(/* turbopackIgnore: true */ resolveStoragePath(relativePath));
 }
 
 export async function deleteStoredFile(relativePath: string): Promise<void> {

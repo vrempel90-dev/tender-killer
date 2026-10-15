@@ -1,21 +1,25 @@
+import { readJson } from '@/lib/security/request';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { verifyPassword } from '@/lib/auth/password';
+import { verifyPassword, hashPassword } from '@/lib/auth/password';
+import { consumeQuota } from '@/lib/security/quota';
 import { createSession, sessionCookieOptions, SESSION_COOKIE } from '@/lib/auth/session';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 
 const LoginSchema = z.object({
   email: z.email('Некорректный e-mail'),
-  password: z.string().min(1, 'Введите пароль'),
+  password: z.string().min(1, 'Введите пароль').max(256),
 });
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    await consumeQuota('auth-global', 'login', 500, 60);
+    const body = await readJson(request);
     const data = LoginSchema.parse(body);
     const email = data.email.trim().toLowerCase();
+    await consumeQuota('auth-account', email, 10, 900);
 
     const user = await prisma.user.findUnique({ where: { email } });
 
@@ -35,6 +39,10 @@ export async function POST(request: Request) {
         });
       }
       return jsonError('Неверный e-mail или пароль', 401);
+    }
+
+    if (!user.passwordHash.startsWith('$argon2id$')) {
+      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(data.password) } });
     }
 
     const { token, expiresAt } = await createSession({

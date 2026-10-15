@@ -1,3 +1,4 @@
+import { readUploadForm } from '@/lib/security/request';
 /**
  * Загрузка документа тендера.
  *
@@ -11,7 +12,10 @@ import { prisma } from '@/lib/db';
 import { requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
-import { extractDocument } from '@/lib/documents/extract';
+import { extractDocumentIsolated as extractDocument } from '@/lib/documents/isolated';
+import { inspectDocumentBytes } from '@/lib/documents/inspect';
+import { scanDocument } from '@/lib/documents/scanner';
+import { consumeQuota } from '@/lib/security/quota';
 import {
   buildStoragePath,
   deleteStoredFile,
@@ -37,7 +41,8 @@ export async function POST(request: Request) {
   try {
     const session = await requireWriteAccess();
 
-    const form = await request.formData();
+    await consumeQuota('document-upload', session.companyId, 30, 3600);
+    const form = await readUploadForm(request, maxUploadBytes());
     const file = form.get('file');
     const tenderId = form.get('tenderId');
     const kindRaw = String(form.get('kind') ?? 'OTHER');
@@ -76,6 +81,8 @@ export async function POST(request: Request) {
       return jsonError('Файл больше допустимого размера', 413);
     }
 
+    await inspectDocumentBytes(buffer, file.name);
+    const scanStatus = await scanDocument(buffer);
     const hash = sha256(buffer);
 
     // Дедупликация в пределах тендера: один и тот же файл не загружаем дважды.
@@ -153,7 +160,7 @@ export async function POST(request: Request) {
           pageCount: outcome.pageCount,
           unreadablePages: outcome.unreadablePages,
           tables: outcome.tables as unknown as object,
-          warnings: outcome.warnings,
+          warnings: scanStatus === 'UNSCANNED' ? [...outcome.warnings, 'DEV: антивирусная проверка не выполнялась'] : outcome.warnings,
           engine: outcome.engine,
           charCount: outcome.charCount,
         },
@@ -183,7 +190,7 @@ export async function POST(request: Request) {
             pageCount: outcome.pageCount,
             unreadablePages: outcome.unreadablePages,
             charCount: outcome.charCount,
-            warnings: outcome.warnings,
+            warnings: scanStatus === 'UNSCANNED' ? [...outcome.warnings, 'DEV: антивирусная проверка не выполнялась'] : outcome.warnings,
             tableCount: outcome.tables.length,
           },
         },

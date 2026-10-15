@@ -1,3 +1,4 @@
+import { readUploadForm } from '@/lib/security/request';
 /**
  * Импорт завершённых закупок из файла пользователя (CSV или XLSX).
  *
@@ -12,16 +13,20 @@ import { prisma } from '@/lib/db';
 import { requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
-import { extractXlsxData } from '@/lib/documents/extract-xlsx';
+import { extractSpreadsheetIsolated as extractXlsxData } from '@/lib/documents/isolated';
+import { inspectDocumentBytes } from '@/lib/documents/inspect';
+import { scanDocument } from '@/lib/documents/scanner';
+import { consumeQuota } from '@/lib/security/quota';
 import { maxUploadBytes } from '@/lib/documents/storage';
 import { guessColumnMapping, parseCsv, parseMarketRows } from '@/lib/market/import';
 
-const ALLOWED_EXTENSIONS = ['.csv', '.xlsx', '.xls'];
+const ALLOWED_EXTENSIONS = ['.csv', '.xlsx'];
 
 export async function POST(request: Request) {
   try {
     const session = await requireWriteAccess();
-    const form = await request.formData();
+    await consumeQuota('market-import', session.companyId, 20, 3600);
+    const form = await readUploadForm(request, maxUploadBytes());
     const file = form.get('file');
     const dryRun = form.get('dryRun') === 'true';
 
@@ -42,6 +47,9 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    await scanDocument(buffer);
+    if (!lowerName.endsWith('.csv')) await inspectDocumentBytes(buffer, file.name);
 
     // ── Чтение таблицы ───────────────────────────────────────────────────
     let table: string[][];

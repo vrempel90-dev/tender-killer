@@ -4,7 +4,10 @@ import { prisma } from '@/lib/db';
 import { requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { handleApiError, jsonError, jsonOk } from '@/lib/http';
-import { extractDocument } from '@/lib/documents/extract';
+import { extractDocumentIsolated as extractDocument } from '@/lib/documents/isolated';
+import { inspectDocumentBytes } from '@/lib/documents/inspect';
+import { scanDocument } from '@/lib/documents/scanner';
+import { consumeQuota } from '@/lib/security/quota';
 import { readStoredFile } from '@/lib/documents/storage';
 
 export async function POST(
@@ -13,6 +16,7 @@ export async function POST(
 ) {
   try {
     const session = await requireWriteAccess();
+    await consumeQuota('document-extract', session.companyId, 30, 3600);
     const { id } = await params;
 
     const document = await prisma.document.findFirst({
@@ -36,6 +40,8 @@ export async function POST(
 
     try {
       const buffer = await readStoredFile(document.storagePath);
+      await inspectDocumentBytes(buffer, document.originalName);
+      await scanDocument(buffer);
       const outcome = await extractDocument({
         buffer,
         mimeType: document.mimeType,

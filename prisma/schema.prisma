@@ -46,6 +46,7 @@ model Company {
   supplierQuotes   SupplierQuote[]
   reports          Report[]
   historicalTenders HistoricalTender[]
+  taxOverrides     CompanyTaxRate[]
 
   @@map("companies")
 }
@@ -465,9 +466,34 @@ model TaxRateConfig {
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  companyOverrides CompanyTaxRate[]
 
   @@unique([key, effectiveFrom])
   @@map("tax_rate_configs")
+}
+
+/// A company may override its own planning assumptions, never global policy.
+model CompanyTaxRate {
+  id          String @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rateId      String
+  rate        TaxRateConfig @relation(fields: [rateId], references: [id], onDelete: Cascade)
+  ratePercent Decimal @db.Decimal(9, 4)
+  confirmedBy String
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, rateId])
+  @@map("company_tax_rates")
+}
+
+/// Shared atomic fixed-window counters; keys contain hashes rather than PII.
+model RequestQuota {
+  key       String @id
+  count     Int
+  expiresAt DateTime
+  @@index([expiresAt])
+  @@map("request_quotas")
 }
 
 // ──────────────────── Анализ договора (модуль 5) ─────────────────────────────

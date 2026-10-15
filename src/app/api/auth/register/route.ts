@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { hashPassword, validatePasswordStrength } from '@/lib/auth/password';
@@ -5,6 +6,7 @@ import { createSession, sessionCookieOptions, SESSION_COOKIE } from '@/lib/auth/
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 import { cookies } from 'next/headers';
+import { consumeQuota } from '@/lib/security/quota';
 
 const RegisterSchema = z.object({
   companyName: z.string().min(2, 'Укажите название компании').max(200),
@@ -24,12 +26,13 @@ const RegisterSchema = z.object({
     .default('GENERAL_VAT'),
   name: z.string().min(2, 'Укажите имя').max(120),
   email: z.email('Некорректный e-mail'),
-  password: z.string().min(10, 'Пароль должен быть не короче 10 символов'),
+  password: z.string().min(10, 'Пароль должен быть не короче 10 символов').max(256),
 });
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    await consumeQuota('auth-global', 'registration', 40, 3600);
+    const body = await readJson(request);
     const data = RegisterSchema.parse(body);
 
     const strengthError = validatePasswordStrength(data.password);

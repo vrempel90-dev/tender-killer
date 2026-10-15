@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /** Анализ проекта договора (Модуль №5). */
 
 import { z } from 'zod';
@@ -55,7 +56,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const body = RunSchema.parse(await request.json());
+    const body = RunSchema.parse(await readJson(request));
 
     const document = await prisma.document.findFirst({
       where: {

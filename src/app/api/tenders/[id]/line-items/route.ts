@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /** Извлечение товарных позиций из технической спецификации (AI) и их правка. */
 
 import { z } from 'zod';
@@ -71,7 +72,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const raw = await request.json();
+    const raw = await readJson(request);
 
     const tender = await prisma.tender.findFirst({
       where: { id, companyId: session.companyId },
@@ -199,7 +200,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const data = UpdateSchema.parse(await request.json());
+    const data = UpdateSchema.parse(await readJson(request));
 
     const item = await prisma.lineItem.findFirst({
       where: {
