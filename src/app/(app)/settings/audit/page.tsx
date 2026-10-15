@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { canManageUsers, requireSession } from '@/lib/auth/guard';
+import { canManageUsers } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +32,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export default async function AuditPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   // Журнал доступен администраторам и владельцу. Остальным показываем
   // понятное сообщение, а не ошибку.

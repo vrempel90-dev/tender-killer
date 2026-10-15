@@ -77,6 +77,14 @@ export async function createSession(params: {
 export interface VerifiedSession extends SessionPayload {
   email: string;
   name: string;
+  /** У пользователя подключён и подтверждён второй фактор. */
+  mfaEnabled: boolean;
+  /** Компания требует второй фактор для OWNER и ADMIN. */
+  companyRequiresMfaForAdmins: boolean;
+  /** Когда второй фактор был подтверждён в этой сессии. */
+  mfaVerifiedAt: Date | null;
+  /** Когда в этой сессии было последнее подтверждение перед операцией. */
+  mfaSteppedUpAt: Date | null;
 }
 
 /**
@@ -102,7 +110,7 @@ export async function getCurrentSession(): Promise<VerifiedSession | null> {
 
   const session = await prisma.session.findUnique({
     where: { id: sid },
-    include: { user: true },
+    include: { user: { include: { company: { select: { requireMfaForAdmins: true } } } } },
   });
 
   if (
@@ -122,6 +130,10 @@ export async function getCurrentSession(): Promise<VerifiedSession | null> {
     sid: session.id,
     email: session.user.email,
     name: session.user.name,
+    mfaEnabled: session.user.totpConfirmedAt !== null,
+    companyRequiresMfaForAdmins: session.user.company.requireMfaForAdmins,
+    mfaVerifiedAt: session.mfaVerifiedAt,
+    mfaSteppedUpAt: session.mfaSteppedUpAt,
   };
 }
 

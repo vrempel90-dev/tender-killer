@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Database, FileClock, Percent, Users } from 'lucide-react';
+import { Database, FileClock, Percent, ShieldCheck, Users } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { requireSession, ROLE_LABELS, type Role } from '@/lib/auth/guard';
+import { ROLE_LABELS, type Role } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
+import { isMfaRequiredForRole } from '@/lib/auth/mfa/policy';
 import { isAiConfigured } from '@/lib/env';
 import { maxUploadBytes } from '@/lib/documents/storage';
 import { PageHeader } from '@/components/layout/page-header';
@@ -14,7 +16,7 @@ import { CompanySettingsForm } from './company-form';
 export const metadata: Metadata = { title: 'Настройки' };
 
 export default async function SettingsPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   const [company, users, unverifiedRates, auditCount] = await Promise.all([
     prisma.company.findUnique({ where: { id: session.companyId } }),
@@ -28,6 +30,7 @@ export default async function SettingsPage() {
         role: true,
         isActive: true,
         lastLoginAt: true,
+        totpConfirmedAt: true,
       },
     }),
     prisma.taxRateConfig.count({ where: { notes: { contains: 'ТРЕБУЕТ СВЕРКИ' } } }),
@@ -35,6 +38,14 @@ export default async function SettingsPage() {
   ]);
 
   if (!company) throw new Error('Компания не найдена');
+
+  // Сколько администраторов не подключили обязательный второй фактор.
+  const mfaGaps = users.filter(
+    (user) =>
+      user.isActive
+      && user.totpConfirmedAt === null
+      && isMfaRequiredForRole(user.role, company.requireMfaForAdmins),
+  ).length;
 
   return (
     <>
@@ -68,6 +79,38 @@ export default async function SettingsPage() {
           </Card>
 
           <div className="space-y-5">
+            <Card>
+              <CardHeader
+                action={
+                  <Link
+                    href="/settings/security"
+                    className="text-[13px] font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Открыть
+                  </Link>
+                }
+              >
+                <CardTitle>
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck className="size-4 text-ink-400" aria-hidden />
+                    Безопасность
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  Второй фактор, коды восстановления, активные сессии.
+                </CardDescription>
+              </CardHeader>
+              <CardBody>
+                {mfaGaps > 0 ? (
+                  <Badge tone="caution">
+                    {mfaGaps} администраторов без второго фактора
+                  </Badge>
+                ) : (
+                  <Badge tone="positive">Администраторы защищены вторым фактором</Badge>
+                )}
+              </CardBody>
+            </Card>
+
             <Card>
               <CardHeader
                 action={

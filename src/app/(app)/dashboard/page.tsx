@@ -9,7 +9,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { isAiConfigured } from '@/lib/env';
 import { formatMinorKzt } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
@@ -25,7 +25,7 @@ import { PipelineChart } from '@/components/dashboard/pipeline-chart';
 export const metadata: Metadata = { title: 'Главная' };
 
 export default async function DashboardPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const companyId = session.companyId;
 
   const [tenders, documentCount, complianceRuns, financialModels] = await Promise.all([

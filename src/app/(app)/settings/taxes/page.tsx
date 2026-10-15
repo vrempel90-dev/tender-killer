@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { ExternalLink } from 'lucide-react';
 import { getCompanyTaxRates } from '@/lib/finance/company-tax';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,7 @@ import { TaxRateEditor } from './tax-rate-editor';
 export const metadata: Metadata = { title: 'Налоговые ставки' };
 
 export default async function TaxesPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const rates = await getCompanyTaxRates(session.companyId);
 
   const unverified = rates.filter((r) =>

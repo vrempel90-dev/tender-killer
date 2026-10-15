@@ -4,7 +4,7 @@
 
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { AuthError } from './auth/guard';
+import { AuthError, MfaError } from './auth/guard';
 import { RequestError } from './security/request';
 import { jsonSafe } from './serialize';
 
@@ -27,6 +27,10 @@ export function jsonError(
 export function handleApiError(error: unknown) {
   if (error instanceof RequestError) return jsonError(error.message, error.status);
   if (error instanceof RangeError) return jsonError('Финансовое значение выходит за допустимый диапазон', 422);
+  if (error instanceof MfaError) {
+    // Клиент по этому признаку уводит пользователя на /mfa.
+    return jsonError(error.message, error.status, { mfaGate: error.gate });
+  }
   if (error instanceof AuthError) {
     return jsonError(error.message, error.status);
   }

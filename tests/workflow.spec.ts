@@ -5,6 +5,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createEmptyFinanceInput } from '../src/lib/finance/defaults';
+import { generateTotp } from '../src/lib/auth/mfa/totp';
 
 test('public original document → selected FX quote → saved calculation → PDF → reopen', async ({ page }) => {
   test.skip(!process.env.E2E_PUBLIC_SPEC_PATH, 'Set an actual public tender PDF path; no mock substituted');
@@ -14,9 +15,19 @@ test('public original document → selected FX quote → saved calculation → P
   const api=page.request;
   const email=`workflow-${randomUUID()}@example.test`, password='Workflow-test-password-123';
   let companyId='';
+  // Коды восстановления понадобятся, чтобы пройти второй фактор после
+  // повторного входа: код из приложения в том же окне уже израсходован.
+  let recoveryCodes: string[]=[];
   try {
     const registration=await api.post('/api/auth/register',{data:{companyName:'E2E test only',name:'Test analyst',email,password,taxRegime:'GENERAL_NO_VAT'}});
     expect(registration.status()).toBe(201); companyId=(await registration.json()).data.companyId;
+    // Владелец компании обязан подключить второй фактор: без него доступа к данным нет.
+    const enroll=await api.post('/api/auth/mfa/enroll');
+    expect(enroll.status()).toBe(200);
+    const secret=/[?&]secret=([A-Z2-7]+)/.exec((await enroll.json()).data.otpauthUri)?.[1];
+    if(!secret) throw new Error('В otpauth-ссылке нет секрета');
+    const confirmed=await api.post('/api/auth/mfa/confirm',{data:{token:generateTotp({secret})}});
+    expect(confirmed.status()).toBe(200); recoveryCodes=(await confirmed.json()).data.recoveryCodes;
     const created=await api.post('/api/tenders',{data:{title:'TEST ONLY — публичная техническая спецификация Самрук-Казына',sourceUrl:'https://zakup.sk.kz/eprocfilestorage/open-api/files/download/9ee72e59-db9c-4d2d-a4b1-fa02388399d7-2020-mdb'}});
     expect(created.status()).toBe(201); const id=(await created.json()).data.id;
     const original=await readFile(process.env.E2E_PUBLIC_SPEC_PATH!);
@@ -55,6 +66,8 @@ test('public original document → selected FX quote → saved calculation → P
     expect((await api.post(`/api/tenders/${id}/requirements`,{data:{documentIds:[document.documentId]}})).status()).toBe(503);
     expect((await api.post('/api/auth/logout')).status()).toBe(200);
     expect((await api.post('/api/auth/login',{data:{email,password}})).status()).toBe(200);
+    // Новая сессия обязана подтвердить фактор отдельно.
+    expect((await api.post('/api/auth/mfa/verify',{data:{token:recoveryCodes[0]}})).status()).toBe(200);
     await page.goto(`/tenders/${id}/finance`);
     await page.getByRole('tab',{name:'Результат',exact:true}).click();
     await expect(page.getByText('Расчётная чистая прибыль',{exact:true}).first()).toBeVisible();

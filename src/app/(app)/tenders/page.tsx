@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { FileText, Plus } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { formatMinorKzt } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
 import { ButtonLink } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { PROCUREMENT_TYPE_LABELS, TENDER_STAGE_LABELS } from '@/lib/tender-label
 export const metadata: Metadata = { title: 'Мои тендеры' };
 
 export default async function TendersPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const tenders = await prisma.tender.findMany({
     where: { companyId: session.companyId },
     orderBy: { updatedAt: 'desc' },

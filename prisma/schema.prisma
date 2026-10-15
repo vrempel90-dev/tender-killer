@@ -36,6 +36,10 @@ model Company {
   isVatPayer Boolean  @default(true)
   /// Признак того, что компания — субъект малого предпринимательства
   isSmallBusiness Boolean @default(true)
+  /// Требовать второй фактор для ролей OWNER и ADMIN.
+  /// По умолчанию включено: эти роли меняют налоговые ставки и состав
+  /// пользователей, то есть влияют на расчёты всей компании.
+  requireMfaForAdmins Boolean @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -59,6 +63,13 @@ model User {
   role         UserRole @default(OWNER)
   isActive     Boolean  @default(true)
   lastLoginAt  DateTime?
+  /// Секрет TOTP (Base32). Null, пока второй фактор не подключён.
+  totpSecret   String?
+  /// Момент подтверждения второго фактора первым корректным кодом.
+  totpConfirmedAt DateTime?
+  /// Последний использованный шаг времени TOTP: защита от повторного
+  /// применения перехваченного кода.
+  totpLastCounter BigInt?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -67,6 +78,7 @@ model User {
 
   sessions  Session[]
   auditLogs AuditLog[]
+  recoveryCodes RecoveryCode[]
 
   @@index([companyId])
   @@map("users")
@@ -84,9 +96,28 @@ model Session {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime @default(now())
+  /// Когда в этой сессии был пройден второй фактор. Null — сессия создана
+  /// только по паролю и к защищённым операциям не допускается.
+  mfaVerifiedAt DateTime?
+  /// Последнее повторное подтверждение (step-up) перед чувствительной
+  /// операцией: смена ставок, управление пользователями, удаление данных.
+  mfaSteppedUpAt DateTime?
 
   @@index([userId])
   @@map("sessions")
+}
+
+/// Одноразовые коды восстановления доступа. Хранится только Argon2id-хеш.
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("recovery_codes")
 }
 
 model AuditLog {

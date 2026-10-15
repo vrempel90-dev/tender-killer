@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { canWrite, requireSession } from '@/lib/auth/guard';
+import { canWrite } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { maxUploadBytes } from '@/lib/documents/storage';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +17,7 @@ export default async function TenderDocumentsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const { id } = await params;
 
   const tender = await prisma.tender.findFirst({

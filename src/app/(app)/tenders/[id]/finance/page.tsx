@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { canWrite } from '@/lib/auth/guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { StatusNotice } from '@/components/ui/status-notice';
@@ -22,7 +22,7 @@ export default async function TenderFinancePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const { id } = await params;
 
   const [tender, company, rateRows] = await Promise.all([

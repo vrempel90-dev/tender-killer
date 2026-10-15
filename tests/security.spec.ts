@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { acquireParserLease } from '../src/lib/security/quota';
 import { prisma as quotaDb } from '../src/lib/db';
 import { createEmptyFinanceInput } from '../src/lib/finance/defaults';
+import { generateTotp } from '../src/lib/auth/mfa/totp';
 
 const databaseURL = process.env.DATABASE_URL ?? '';
 if (!databaseURL || !['localhost','127.0.0.1'].includes(new URL(databaseURL).hostname)) throw new Error('Isolated local test DB required');
@@ -24,6 +25,14 @@ async function register(context: APIRequestContext, label: string) {
   const result = await context.post('/api/auth/register', { data: { companyName: `E2E ${label}`, name: 'Test analyst',
     email: `e2e-${randomUUID()}@example.test`, password: 'E2E-long-password-123', taxRegime: 'GENERAL_NO_VAT' } });
   expect(result.status()).toBe(201); const payload = await result.json(); companies.push(payload.data.companyId);
+  // Владелец компании обязан подключить второй фактор: без него guard не
+  // пропускает сессию к данным. Сценарии изоляции идут уже за этим шагом.
+  const start = await context.post('/api/auth/mfa/enroll');
+  expect(start.status()).toBe(200);
+  const secret = /[?&]secret=([A-Z2-7]+)/.exec((await start.json()).data.otpauthUri)?.[1];
+  if (!secret) throw new Error('В otpauth-ссылке нет секрета');
+  const confirm = await context.post('/api/auth/mfa/confirm', { data: { token: generateTotp({ secret }) } });
+  expect(confirm.status()).toBe(200);
   return payload.data;
 }
 test.describe.configure({ mode:'serial' });

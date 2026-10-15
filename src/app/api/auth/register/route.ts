@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { hashPassword, validatePasswordStrength } from '@/lib/auth/password';
 import { createSession, sessionCookieOptions, SESSION_COOKIE } from '@/lib/auth/session';
+import { evaluateMfaGate } from '@/lib/auth/mfa/policy';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 import { cookies } from 'next/headers';
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
           },
         },
       },
+      include: { company: { select: { requireMfaForAdmins: true } } },
     });
 
     const { token, expiresAt } = await createSession({
@@ -86,7 +88,24 @@ export async function POST(request: Request) {
       ipAddress: clientIp(request),
     });
 
-    return jsonOk({ userId: user.id, companyId: user.companyId }, 201);
+    // Владелец компании по умолчанию обязан подключить второй фактор,
+    // поэтому следующий шаг после регистрации — /mfa, а не дашборд.
+    const gate = evaluateMfaGate({
+      role: user.role,
+      companyRequiresMfaForAdmins: user.company.requireMfaForAdmins,
+      mfaEnabled: false,
+      sessionMfaVerifiedAt: null,
+    });
+
+    return jsonOk(
+      {
+        userId: user.id,
+        companyId: user.companyId,
+        mfaGate: gate,
+        next: gate === 'OK' ? '/dashboard' : '/mfa',
+      },
+      201,
+    );
   } catch (error) {
     return handleApiError(error);
   }

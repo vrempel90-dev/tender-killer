@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { canWrite, requireSession } from '@/lib/auth/guard';
+import { canWrite } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusNotice } from '@/components/ui/status-notice';
@@ -8,7 +9,7 @@ import { TenderForm } from './tender-form';
 export const metadata: Metadata = { title: 'Новый анализ' };
 
 export default async function NewTenderPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   if (!canWrite(session.role)) {
     return (

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { verifyPassword, hashPassword } from '@/lib/auth/password';
 import { consumeQuota } from '@/lib/security/quota';
 import { createSession, sessionCookieOptions, SESSION_COOKIE } from '@/lib/auth/session';
+import { evaluateMfaGate } from '@/lib/auth/mfa/policy';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 
@@ -41,6 +42,11 @@ export async function POST(request: Request) {
       return jsonError('Неверный e-mail или пароль', 401);
     }
 
+    const company = await prisma.company.findUnique({
+      where: { id: user.companyId },
+      select: { requireMfaForAdmins: true },
+    });
+
     if (!user.passwordHash.startsWith('$argon2id$')) {
       await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(data.password) } });
     }
@@ -68,7 +74,20 @@ export async function POST(request: Request) {
       ipAddress: clientIp(request),
     });
 
-    return jsonOk({ userId: user.id });
+    // Пароль проверен, но сессия ещё не полная: пока второй фактор не
+    // подключён и не подтверждён, guard не пропускает её к данным.
+    const gate = evaluateMfaGate({
+      role: user.role,
+      companyRequiresMfaForAdmins: company?.requireMfaForAdmins ?? true,
+      mfaEnabled: user.totpConfirmedAt !== null,
+      sessionMfaVerifiedAt: null,
+    });
+
+    return jsonOk({
+      userId: user.id,
+      mfaGate: gate,
+      next: gate === 'OK' ? '/dashboard' : '/mfa',
+    });
   } catch (error) {
     return handleApiError(error);
   }
