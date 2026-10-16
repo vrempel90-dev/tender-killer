@@ -11,7 +11,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16-alpine
@@ -21,6 +21,10 @@ jobs:
           POSTGRES_DB: tender_killer_test
         ports: ['127.0.0.1:5432:5432']
         options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+      clamav:
+        image: clamav/clamav:1.5
+        ports: ['127.0.0.1:3310:3310']
+        options: --health-cmd "clamdscan --ping=1" --health-interval 10s --health-timeout 5s --health-start-period 60s --health-retries 30
     env:
       # Владелец схемы: миграции, сиды и прямые проверки в тестах.
       DATABASE_URL: postgresql://tk_test:ci-ephemeral-test-only@127.0.0.1:5432/tender_killer_test
@@ -30,9 +34,14 @@ jobs:
       APP_DB_PASSWORD: ci-ephemeral-app-role-only
       APP_DATABASE_URL: postgresql://tk_app_ci:ci-ephemeral-app-role-only@127.0.0.1:5432/tender_killer_test
       APP_URL: http://localhost:3000
+      APP_ENV: test
+      EMAIL_PROVIDER: test
+      EMAIL_TEST_URL: http://127.0.0.1:8025/email
+      CLAMAV_HOST: 127.0.0.1
+      CLAMAV_PORT: '3310'
+      DOCUMENT_SCAN_MODE: required
       # Ключ шифрования документов: сквозной тест проверяет, что файл на
       # диске зашифрован, поэтому ключ обязателен (docs/document-security.md).
-      DOCUMENT_ENCRYPTION_KEY: Y2ktZXBoZW1lcmFsLWRvY3VtZW50LWtleS0zMmJ5dGU=
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -41,7 +50,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node -e "require('fs').appendFileSync(process.env.GITHUB_ENV,'SESSION_SECRET='+require('crypto').randomBytes(48).toString('hex')+'\n')"
+      - run: node -e "require('fs').appendFileSync(process.env.GITHUB_ENV,'SESSION_SECRET='+require('crypto').randomBytes(48).toString('hex')+'\nDOCUMENT_ENCRYPTION_KEY='+require('crypto').randomBytes(32).toString('base64')+'\nBACKUP_ENCRYPTION_PASSPHRASE='+require('crypto').randomBytes(32).toString('hex')+'\n')"
       - run: npm run db:generate && npm run db:deploy && npm run db:seed
       # Роль приложения создаётся после миграций: права должны покрыть
       # уже созданные таблицы.
@@ -52,19 +61,32 @@ jobs:
             -v app_user="$APP_DB_USER" -v app_password="$APP_DB_PASSWORD" \
             -f scripts/db-roles.sql
       - run: npm run verify
+      - run: npx tsx scripts/check-antivirus.ts
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
       - name: HTTP security integration tests
         run: |
           # Сервер работает под ограниченной ролью: иначе RLS обходится
           # владельцем схемы и изоляция осталась бы непроверенной.
           DATABASE_URL="$APP_DATABASE_URL" npm run dev > /tmp/tender-killer-test.log 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid" || true' EXIT
+          node scripts/test-email-sink.mjs > /tmp/tender-killer-mail-test.log 2>&1 &
+          mail_pid=$!
+          trap 'kill "$server_pid" "$mail_pid" || true' EXIT
           for attempt in $(seq 1 60); do
             if curl --fail --silent http://localhost:3000/api/health > /dev/null; then break; fi
             sleep 1
           done
-          npm run test:e2e -- tests/security.spec.ts tests/mfa.spec.ts tests/rls.spec.ts tests/radar.spec.ts tests/guard.spec.ts tests/ai-admission.spec.ts
+          npm run test:e2e -- tests/security.spec.ts tests/mfa.spec.ts tests/rls.spec.ts tests/radar.spec.ts tests/guard.spec.ts tests/ai-admission.spec.ts tests/password-reset.spec.ts
+      - name: Encrypted backup and isolated restore drill
+        env:
+          VERIFY_DATABASE_URL: postgresql://tk_test:ci-ephemeral-test-only@127.0.0.1:5432/tender_killer_restore_test
+          STORAGE_DIR: ./storage
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tender_killer_restore_test'
+          mkdir -p storage
+          printf 'Isolated backup drill fixture\n' > storage/backup-drill.txt
+          npm run backup:verify
   dependencies:
     runs-on: ubuntu-latest
     timeout-minutes: 10

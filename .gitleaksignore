@@ -1,0 +1,4 @@
+# Exact historical CI fixture, decoded value "ci-ephemeral-document-key-32byte".
+# Never used for real documents. Current CI now generates a fresh random key.
+# No production secret or entire file/rule is excluded.
+b9ba70184a348b63814a68cde234f30a197cce57:.github/workflows/quality.yml:generic-api-key:35
