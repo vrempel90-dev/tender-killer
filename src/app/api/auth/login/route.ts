@@ -48,13 +48,19 @@ export async function POST(request: Request) {
     });
 
     if (!user.passwordHash.startsWith('$argon2id$')) {
-      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(data.password) } });
+      // A concurrent reset must not be overwritten by legacy bcrypt rehash.
+      const rehashed = await prisma.user.updateMany({
+        where: { id: user.id, passwordHash: user.passwordHash, authVersion: user.authVersion },
+        data: { passwordHash: await hashPassword(data.password) },
+      });
+      if (rehashed.count !== 1) return jsonError('Неверный e-mail или пароль', 401);
     }
 
     const { token, expiresAt } = await createSession({
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
+      authVersion: user.authVersion,
       userAgent: request.headers.get('user-agent'),
       ipAddress: clientIp(request),
     });

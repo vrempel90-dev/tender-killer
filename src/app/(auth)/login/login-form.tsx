@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { StatusNotice } from '@/components/ui/status-notice';
@@ -71,6 +72,11 @@ export function LoginForm() {
         )}
       </Field>
 
+      <div className="text-right">
+        <Link href="/forgot-password" className="text-[12px] font-medium text-brand-600 hover:text-brand-700">
+          Забыли пароль?
+        </Link>
+      </div>
       <Button type="submit" loading={loading} className="w-full" size="lg">
         Войти
       </Button>

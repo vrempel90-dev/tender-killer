@@ -96,6 +96,8 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
+  /// Incremented on reset; invalidates even concurrently issued sessions.
+  authVersion Int @default(0)
   name         String
   role         UserRole @default(OWNER)
   isActive     Boolean  @default(true)
@@ -116,6 +118,7 @@ model User {
   sessions  Session[]
   auditLogs AuditLog[]
   recoveryCodes RecoveryCode[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([companyId])
   @@map("users")
@@ -128,6 +131,7 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// SHA-256 от значения cookie — сырой токен в БД не хранится
   tokenHash String   @unique
+  authVersion Int @default(0)
   userAgent String?
   ipAddress String?
   expiresAt DateTime
@@ -142,6 +146,23 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+/// Pre-tenant authentication table, like sessions. Only hashes are stored.
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  authVersion Int
+  expiresAt   DateTime
+  sentAt      DateTime?
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 /// Одноразовые коды восстановления доступа. Хранится только Argon2id-хеш.

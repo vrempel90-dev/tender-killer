@@ -25,11 +25,11 @@ export function getAiConfig(): AiConfig {
   return parsed.data;
 }
 
-/** Only fixed local destinations. No DNS resolution, redirects or public hosts. */
+/** Fixed loopback/service destinations. Internal names require trusted platform DNS. */
 export function trustedOllamaUrl(value: string): URL {
   let url: URL;
   try { url = new URL(value); } catch { throw new AiNotConfiguredError(); }
-  const allowedHosts = ['127.0.0.1', 'localhost', '[::1]', 'ollama'];
+  const allowedHosts = ['127.0.0.1', 'localhost', '[::1]', 'ollama', 'ollama.railway.internal'];
   if (url.protocol !== 'http:' || !allowedHosts.includes(url.hostname)
     || url.port !== '11434' || url.username || url.password
     || url.pathname !== '/' || url.search || url.hash) {

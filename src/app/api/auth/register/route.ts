@@ -72,6 +72,7 @@ export async function POST(request: Request) {
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
+      authVersion: user.authVersion,
       userAgent: request.headers.get('user-agent'),
       ipAddress: clientIp(request),
     });

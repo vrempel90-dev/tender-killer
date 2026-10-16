@@ -33,6 +33,8 @@ export async function createSession(params: {
   companyId: string;
   role: string;
   userAgent?: string | null;
+  /** Version observed during password verification. */
+  authVersion: number;
   ipAddress?: string | null;
 }): Promise<{ token: string; expiresAt: Date }> {
   const signingKey = secretKey();
@@ -43,6 +45,7 @@ export async function createSession(params: {
     data: {
       userId: params.userId,
       tokenHash: hashToken(raw),
+      authVersion: params.authVersion,
       userAgent: params.userAgent ?? null,
       ipAddress: params.ipAddress ?? null,
       expiresAt,
@@ -98,6 +101,7 @@ export async function getCurrentSession(): Promise<VerifiedSession | null> {
     session.expiresAt.getTime() < Date.now() ||
     session.tokenHash !== hashToken(raw) ||
     !session.user.isActive
+    || session.authVersion !== session.user.authVersion
   ) {
     return null;
   }
