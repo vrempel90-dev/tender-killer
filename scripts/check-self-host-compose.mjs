@@ -24,6 +24,12 @@ const networksOf = service => Object.keys(services[service].networks || {});
 assert.ok(networksOf('db').some(n => n.endsWith('db-private')));
 assert.ok(networksOf('ollama').some(n => n.endsWith('ai-private')));
 assert.ok(networksOf('clamav').some(n => n.endsWith('scan-private')));
+assert.ok(networksOf('clamav').some(n => n.endsWith('av-updates')),
+  'ClamAV must have outbound access to update signatures');
+for (const name of ['app', 'db', 'migrate', 'db-roles', 'ollama']) {
+  assert.ok(!networksOf(name).some(n => n.endsWith('av-updates')),
+    `${name} may not join the antivirus update network`);
+}
 for (const privateNetwork of ['db-private', 'ai-private', 'scan-private']) {
   assert.ok(networksOf('app').some(n => n.endsWith(privateNetwork)), `App must connect to ${privateNetwork}`);
 }
