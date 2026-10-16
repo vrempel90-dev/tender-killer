@@ -146,4 +146,20 @@ expectStatus(saved, 200, 'encrypted PDF round-trip');
 assert.equal(createHash('sha256').update(saved.bytes).digest('hex'),
   createHash('sha256').update(bytes).digest('hex'));
 console.log('PASS ClamAV, encrypted file storage and PDF download');
+
+// Optional real model-on-PDF acceptance, not a mock. Disabled in quick smoke so
+// a slow CPU model cannot hide core regression results.
+if (process.env.STAGING_AI_DOCUMENT_TEST === 'true') {
+  const analyzed = await a.call('/api/tenders/' + tenderId + '/requirements', {
+    method: 'POST',
+    json: { documentIds: [documentId] },
+    timeout: 330_000,
+  });
+  expectStatus(analyzed, 200, 'AI requirements extraction from uploaded PDF');
+  assert.ok(analyzed.data?.data, 'Expected structured, reviewable requirements');
+  const requirements = await a.call('/api/tenders/' + tenderId + '/requirements');
+  expectStatus(requirements, 200, 'Read AI requirements');
+  assert.ok(Array.isArray(requirements.data?.data));
+  console.log('PASS real PDF -> Ollama -> persisted requirements, with manual review');
+}
 console.log('STAGING ACCEPTANCE PASS; synthetic accounts only');
