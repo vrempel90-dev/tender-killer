@@ -56,8 +56,40 @@ model Company {
   opportunities      ProcurementOpportunity[]
   savedSearches      SavedSearch[]
   watches            TenderWatch[]
+  aiJobs             AiAnalysisJob[]
 
   @@map("companies")
+}
+
+/// Progress and verified intermediate results of long AI analyses, scoped by RLS.
+model AiAnalysisJob {
+  id              String @id @default(cuid())
+  companyId       String
+  company         Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId          String
+  kind            String
+  status          String @default("QUEUED")
+  sources         Json
+  totalChunks     Int
+  completedChunks Int @default(0)
+  error           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  finishedAt      DateTime?
+  chunks          AiAnalysisChunk[]
+  @@index([companyId, createdAt])
+  @@map("ai_analysis_jobs")
+}
+
+model AiAnalysisChunk {
+  id        String @id @default(cuid())
+  jobId     String
+  job       AiAnalysisJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  position  Int
+  result    Json
+  createdAt DateTime @default(now())
+  @@unique([jobId, position])
+  @@map("ai_analysis_chunks")
 }
 
 model User {

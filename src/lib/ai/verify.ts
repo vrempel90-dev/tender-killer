@@ -8,6 +8,7 @@
  */
 
 import { findQuotePage } from '../documents/extract';
+import Decimal from 'decimal.js';
 
 export interface SourceDocument {
   id: string;
@@ -282,4 +283,19 @@ export function verifyExtractionQuote(
       'Цитата не найдена в тексте документа — формулировка могла быть изменена '
       + 'при извлечении. Подтвердите запись вручную.',
   };
+}
+
+/** Explicit decimal numerals only. No guessed conversions, word-numbers or math. */
+export function explicitNumbers(text: string): string[] {
+  return (text.match(/\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)?/g) ?? [])
+    .flatMap(value => { try { return [new Decimal(value.replace(/[ \u00a0\u202f]/g, '').replace(',', '.')).toString()]; } catch { return []; } });
+}
+
+export function numberInQuote(value: number, quote: string): boolean {
+  return Number.isFinite(value) && explicitNumbers(quote).includes(new Decimal(value).toString());
+}
+
+export function claimsNumbersGrounded(claim: string, quote: string): boolean {
+  const source = new Set(explicitNumbers(quote));
+  return explicitNumbers(claim).every(n => source.has(n));
 }

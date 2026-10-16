@@ -22,15 +22,40 @@ export async function consumeQuota(scope: string, subject: string, limit: number
   }
 }
 
-async function claimLease(subject: string): Promise<(() => Promise<void>) | null> {
+async function claimLease(subject: string, ttlMs = 120_000): Promise<(() => Promise<void>) | null> {
   const key = createHash('sha256').update(`lease:${subject}`).digest('hex');
-  const now = new Date(), expiresAt = new Date(now.getTime() + 120_000);
+  const now = new Date(), expiresAt = new Date(now.getTime() + ttlMs);
   const rows = await prisma.$queryRaw<Array<{ key: string }>>`
     INSERT INTO request_quotas (key, count, "expiresAt") VALUES (${key}, 1, ${expiresAt})
     ON CONFLICT (key) DO UPDATE SET "expiresAt" = EXCLUDED."expiresAt"
     WHERE request_quotas."expiresAt" < ${now} RETURNING key`;
   if (!rows.length) return null;
   return async () => { await prisma.requestQuota.deleteMany({ where: { key, expiresAt } }); };
+}
+
+/** Shared, bounded AI admission queue. Never relies on a process-local semaphore. */
+export async function acquireAiLease(companyId: string, options: {
+  parallel: number; timeoutMs: number; queueTimeoutMs: number; signal?: AbortSignal;
+}): Promise<() => Promise<void>> {
+  const deadline = Date.now() + options.queueTimeoutMs;
+  do {
+    if (options.signal?.aborted) throw new RequestError('AI-запрос отменён', 409);
+    const company = await claimLease(`ai-company:${companyId}`, options.timeoutMs + 10_000);
+    if (company) {
+      try {
+        for (let slot = 0; slot < options.parallel; slot++) {
+          const platform = await claimLease(`ai-platform:${slot}`, options.timeoutMs + 10_000);
+          if (platform) return async () => { try { await platform(); } finally { await company(); } };
+        }
+      } catch (error) { await company(); throw error; }
+      await company();
+    }
+    if (Date.now() >= deadline) break;
+    const { setTimeout } = await import('node:timers/promises');
+    try { await setTimeout(Math.min(250, deadline - Date.now()), undefined, { signal: options.signal }); }
+    catch { throw new RequestError('AI-запрос отменён', 409); }
+  } while (Date.now() <= deadline);
+  throw new RequestError('Очередь AI занята. Промежуточные результаты сохранены; повторите позднее.', 429);
 }
 
 /** One upload/parser per company, four across the shared platform, across replicas. */
