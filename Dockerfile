@@ -21,7 +21,7 @@ RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build npm run build
 FROM node:22-alpine AS migration-tools
 WORKDIR /tools
 RUN printf '{}\n' > package.json \
- && npm install --no-audit --no-fund --no-save prisma@7.10.0 tsx@4.23.15
+ && npm install --no-audit --no-fund --no-save prisma@7.10.0 tsx@4.23.15 @prisma/adapter-pg@7.10.0
 
 # ─────────────────────────── Запуск ───────────────────────────
 FROM node:22-alpine AS runner
