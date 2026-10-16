@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { callStructured } from './client';
 import { COMMON_RULES, PROMPT_VERSION } from './prompts';
 import { claimsNumbersGrounded, verifyQuote, type SourceDocument } from './verify';
+import { AiResponseError } from './errors';
 
 const SemanticResponse = z.object({
   explanation: z.string().min(3).max(2000),
@@ -24,7 +25,9 @@ export async function interpretSources(params: { kind: 'RADAR' | 'GUARD' | 'SOUR
   const response = await callStructured<unknown>({ system: `${task}\n${COMMON_RULES}`,
     userContent: JSON.stringify({ firstSource: params.first, secondSource: params.second }),
     toolName: 'semantic_interpretation', toolDescription: task, inputSchema: z.toJSONSchema(SemanticResponse), signal: params.signal });
-  const result = SemanticResponse.parse(response.data);
+  const parsed = SemanticResponse.safeParse(response.data);
+  if (!parsed.success) throw new AiResponseError('Ответ модели не соответствует схеме семантического анализа. Требует ручной проверки.');
+  const result = parsed.data;
   const first = verifyQuote(result.firstQuote, [source('first', params.first)]).verified;
   const second = verifyQuote(result.secondQuote, [source('second', params.second)]).verified;
   const validClass = (params.kind === 'GUARD'

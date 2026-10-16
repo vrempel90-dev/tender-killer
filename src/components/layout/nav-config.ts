@@ -113,6 +113,6 @@ export const STATUS_LABELS: Record<
   { label: string; tone: 'positive' | 'caution' | 'neutral' }
 > = {
   READY: { label: 'Работает', tone: 'positive' },
-  NEEDS_AI_KEY: { label: 'Нужен ключ AI', tone: 'caution' },
+  NEEDS_AI_KEY: { label: 'Настройте AI-модель', tone: 'caution' },
   NEEDS_DATA: { label: 'Нужны данные', tone: 'neutral' },
 };

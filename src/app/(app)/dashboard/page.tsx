@@ -115,7 +115,7 @@ export default async function DashboardPage() {
       <div className="flex-1 space-y-5 px-5 py-5 sm:px-7">
         {!isAiConfigured() ? (
           <StatusNotice severity="WARNING" title="AI-модули отключены">
-            Переменная окружения <code className="font-mono">ANTHROPIC_API_KEY</code> не
+            Конфигурация AI-модели не
             задана. Финансовый калькулятор, загрузка документов, извлечение текста и
             отчёты работают. Автоматическая проверка требований и анализ договора
             станут доступны после настройки ключа.

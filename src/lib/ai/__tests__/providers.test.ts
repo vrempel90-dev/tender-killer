@@ -126,6 +126,11 @@ describe('evidence and numbers', () => {
     replies(chat({ items: [{ name: 'Оборудование', specification: null, unit: 'шт', quantity: 25, sourceQuote: document.text, pageNumber: null, customerUnitPrice: 1000.50 }] }));
     expect((await extractLineItemsChunk({ documents: [document] })).items[0]).toMatchObject({ quantity: 25, customerUnitPriceMinor: 100050, quoteVerified: true });
   });
+  it('does not accept a quantity as a price merely because the numeral is present', async () => {
+    const noPrice = { ...document, text: 'Количество: 25 штук оборудования. Цена не указана.' };
+    replies(chat({ items: [{ name: 'Оборудование', specification: null, unit: 'шт', quantity: 25, sourceQuote: noPrice.text, pageNumber: null, customerUnitPrice: 25 }] }));
+    expect((await extractLineItemsChunk({ documents: [noPrice] })).items[0]?.customerUnitPriceMinor).toBeNull();
+  });
   it('clears unsupported contract terms and hints', async () => {
     replies(chat({ risks: [{ category: 'PAYMENT_TERMS', title: 'Срок оплаты', clauseRef: null, sourceQuote: document.text, pageNumber: null, riskLevel: 'HIGH', explanation: 'Нужно проверить срок', recommendation: null, needsLawyerReview: true, financeHint: { paymentDelayDays: 99 } }], extractedTerms: { paymentDelayDays: 99 } }));
     const result = await analyzeContractChunk({ document }); expect(result.terms.paymentDelayDays).toBeNull(); expect(result.risks[0]?.financeHint?.paymentDelayDays).toBeNull();

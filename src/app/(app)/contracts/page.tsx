@@ -72,7 +72,7 @@ export default async function ContractsOverviewPage() {
         {!isAiConfigured() ? (
           <NotImplementedNotice
             feature="Анализ проекта договора"
-            requires="Требуется переменная окружения ANTHROPIC_API_KEY."
+            requires="AI-модель недоступна. Обратитесь к администратору."
           />
         ) : null}
         <OverviewList

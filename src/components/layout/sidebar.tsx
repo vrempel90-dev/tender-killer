@@ -58,8 +58,8 @@ export function Sidebar({
             {blocked ? (
               <span
                 className="size-1.5 shrink-0 rounded-full bg-amber-400"
-                title="Требуется ключ Anthropic API"
-                aria-label="Требуется ключ Anthropic API"
+                title="Требуется настройка AI-модели"
+                aria-label="Требуется настройка AI-модели"
               />
             ) : null}
           </Link>

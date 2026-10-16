@@ -90,6 +90,7 @@ export async function POST(request: Request, { params }: Params) {
     try {
       const { risks, terms, meta } = await analyzeContract({
         document: sourceDocument,
+        signal: request.signal,
       });
 
       await dbTransaction(async (tx) => {
@@ -117,7 +118,7 @@ export async function POST(request: Request, { params }: Params) {
             finishedAt: new Date(),
             aiModel: meta.model,
             extractedTerms: terms as unknown as object,
-            tokenUsage: meta.tokenUsage as unknown as object,
+            tokenUsage: { ...meta.tokenUsage, provider: meta.provider, modelDigest: meta.modelDigest, limitations: meta.limitations, adjustedCount: meta.adjustedCount } as unknown as object,
           },
         });
       });
@@ -134,6 +135,10 @@ export async function POST(request: Request, { params }: Params) {
           risks: risks.length,
           unverifiedQuotes: risks.filter((r) => !r.quoteVerified).length,
           model: meta.model,
+          promptVersion: meta.promptVersion,
+          provider: meta.provider,
+          modelDigest: meta.modelDigest,
+          limitations: meta.limitations,
           tokenUsage: meta.tokenUsage,
         },
       });

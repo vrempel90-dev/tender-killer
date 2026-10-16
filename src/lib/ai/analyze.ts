@@ -10,7 +10,7 @@
 import { callStructured, truncateForPrompt } from './client';
 import { planChunks, coverageLimitations } from './chunks';
 import { runChunkedJob } from './jobs';
-import { numberInQuote, claimsNumbersGrounded, verifyQuote } from './verify';
+import { numberInQuote, quantityInQuote, priceInQuote, claimsNumbersGrounded, verifyQuote } from './verify';
 import Decimal from 'decimal.js';
 import {
   COMPLIANCE_TOOL_SCHEMA,
@@ -233,8 +233,10 @@ export async function extractLineItemsChunk(params: {
   let adjustedCount = 0;
   const items = parsed.data.items.map((item) => {
     const verification = verifyExtractionQuote(item.sourceQuote, readable);
-    const quantityVerified = verification.quoteVerified && numberInQuote(item.quantity, item.sourceQuote);
-    const priceVerified = verification.quoteVerified && item.customerUnitPrice !== null && numberInQuote(item.customerUnitPrice, item.sourceQuote);
+    const quantityVerified = verification.quoteVerified && new Decimal(item.quantity).decimalPlaces() <= 4
+      && quantityInQuote(item.quantity, item.sourceQuote);
+    const priceVerified = verification.quoteVerified && item.customerUnitPrice !== null
+      && new Decimal(item.customerUnitPrice).decimalPlaces() <= 2 && priceInQuote(item.customerUnitPrice, item.sourceQuote);
     if (!quantityVerified || (item.customerUnitPrice !== null && !priceVerified)
       || !claimsNumbersGrounded(item.name + ' ' + (item.specification ?? ''), item.sourceQuote)) {
       verification.quoteVerified = false; verification.note = 'Числовые значения не подтверждены цитатой. Требует ручной проверки.';
@@ -589,7 +591,9 @@ export async function extractLineItems(params: { documents: SourceDocument[]; si
   const results = await runChunkedJob('LINE_ITEMS', params.documents, chunks,
     (documents, signal) => extractLineItemsChunk({ documents, signal }), params.signal);
   // Do not merge distinct repeated rows merely because their product names match.
-  const items = dedupe(results.flatMap(r => r.items), r => r.sourceQuote + r.name + r.quantity);
+  const items = results.flatMap(r => r.items);
+  // Repeated source rows may be real distinct positions. Keep them for manual
+  // review rather than silently losing quantity through deduplication.
   for (const item of items) item.pageNumber = verifyQuote(item.sourceQuote, params.documents).pageNumber;
   return { items, meta: mergeMeta(results, params.documents) };
 }

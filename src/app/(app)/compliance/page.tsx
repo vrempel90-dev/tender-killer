@@ -68,7 +68,7 @@ export default async function ComplianceOverviewPage() {
         {!isAiConfigured() ? (
           <NotImplementedNotice
             feature="Автоматическая проверка документов"
-            requires="Требуется переменная окружения ANTHROPIC_API_KEY. Загрузка документов, извлечение текста и ручное ведение требований работают."
+            requires="AI-модель недоступна. Обратитесь к администратору. Загрузка документов, извлечение текста и ручное ведение требований работают."
           />
         ) : null}
         <OverviewList

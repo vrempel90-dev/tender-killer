@@ -215,6 +215,7 @@ test('ГЛАВНОЕ: объявления другой компании нед�
   });
   // Ни чтения, ни передачи в расчёт по прямой ссылке.
   expect((await b.post(`/api/radar/opportunities/${foreign.id}/to-tender`)).status()).toBe(404);
+  expect((await b.post(`/api/radar/opportunities/${foreign.id}/ai`, { data: {} })).status()).toBe(404);
   expect((await b.delete(`/api/radar/imports?importId=${foreign.importId}`)).status()).toBe(404);
   expect(await db.procurementOpportunity.findUnique({ where: { id: foreign.id } })).not.toBeNull();
 });

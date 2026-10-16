@@ -22,6 +22,7 @@ const ACTION_LABELS: Record<string, string> = {
   DOCUMENT_EXTRACT: 'Извлечение содержимого',
   FINANCE_SAVE: 'Сохранение финансового расчёта',
   AI_REQUIREMENTS_RUN: 'AI: извлечение требований',
+  AI_SEMANTIC_RUN: 'AI: семантическое пояснение',
   AI_COMPLIANCE_RUN: 'AI: проверка документов',
   AI_CONTRACT_RUN: 'AI: анализ договора',
   QUOTE_IMPORT: 'Импорт коммерческого предложения',
