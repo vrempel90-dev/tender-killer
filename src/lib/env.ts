@@ -3,8 +3,8 @@ import { AiConfigSchema, getAiConfig, trustedOllamaUrl } from './ai/config';
 
 /**
  * Валидация переменных окружения. Приложение не должно стартовать с
- * невалидной конфигурацией, но отсутствие ANTHROPIC_API_KEY — допустимое
- * состояние: AI-модули тогда честно показываются как недоступные.
+ * невалидной конфигурацией. Ollama используется по умолчанию и не требует
+ * внешнего API-ключа. Состояние сервера проверяется отдельно от конфигурации.
  */
 const EnvSchema = AiConfigSchema.extend({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL обязателен'),
@@ -38,7 +38,7 @@ export function getEnv(): Env {
   return cached;
 }
 
-/** Настроен ли доступ к Anthropic API (от этого зависит доступность AI-модулей). */
+/** Valid provider configuration only; this is not an operational readiness check. */
 export function isAiConfigured(): boolean {
   try {
     const config = getAiConfig();

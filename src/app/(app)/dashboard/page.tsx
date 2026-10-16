@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { prisma } from '@/lib/db';
 import { requirePageSession } from '@/lib/auth/page-guard';
-import { isAiConfigured } from '@/lib/env';
+import { getAiAvailability } from '@/lib/ai/availability';
 import { formatMinorKzt } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
 import { ButtonLink } from '@/components/ui/button';
@@ -28,7 +28,7 @@ export default async function DashboardPage() {
   const session = await requirePageSession();
   const companyId = session.companyId;
 
-  const [tenders, documentCount, complianceRuns, financialModels] = await Promise.all([
+  const [tenders, documentCount, complianceRuns, financialModels, ai] = await Promise.all([
     prisma.tender.findMany({
       where: { companyId },
       orderBy: { updatedAt: 'desc' },
@@ -61,6 +61,7 @@ export default async function DashboardPage() {
       orderBy: { updatedAt: 'desc' },
       select: { id: true, tenderId: true, result: true, updatedAt: true },
     }),
+    getAiAvailability(),
   ]);
 
   const activeStages = ['DRAFT', 'ANALYSIS', 'DECIDED_GO', 'SUBMITTED'] as const;
@@ -113,14 +114,9 @@ export default async function DashboardPage() {
       />
 
       <div className="flex-1 space-y-5 px-5 py-5 sm:px-7">
-        {!isAiConfigured() ? (
-          <StatusNotice severity="WARNING" title="AI-модули отключены">
-            Конфигурация AI-модели не
-            задана. Финансовый калькулятор, загрузка документов, извлечение текста и
-            отчёты работают. Автоматическая проверка требований и анализ договора
-            станут доступны после настройки ключа.
-          </StatusNotice>
-        ) : null}
+        <StatusNotice severity={ai.state === 'available' || ai.state === 'unverified' ? 'INFO' : 'WARNING'} title={ai.title}>
+          {ai.description}
+        </StatusNotice>
 
         <section className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile

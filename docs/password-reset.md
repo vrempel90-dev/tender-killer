@@ -107,7 +107,11 @@ scripts/test-email-sink.mjs хранит письма только в памят
 адреса @example.test. Тестовый sink никогда не разворачивается в Railway.
 На публичном staging email отключён до Resend.
 
-Тесты: tests/password-reset.spec.ts и policy/transport Vitest.
+Тесты: tests/password-reset.spec.ts, отдельный tests/unconfigured-email.spec.ts
+и policy/transport Vitest. Второй сценарий запускает production-сборку с
+EMAIL_PROVIDER=resend, EMAIL_DOMAIN_VERIFIED=false и пустыми ключом/отправителем:
+503 одинаков для существующего и неизвестного адреса, токены не создаются,
+форма показывает недоступность и не заявляет об отправке или доставке.
 Покрыты одноразовость, expiry, replay/race, отказ отправки, MFA, старые сессии,
 конкурентная сессия, новый/старый пароль, квоты, CSRF, мобильный интерфейс,
 удаление query и no-referrer. Для запуска нужны отдельный local PostgreSQL,
