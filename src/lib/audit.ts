@@ -37,7 +37,11 @@ export type AuditAction =
   | 'RADAR_IMPORT_DELETE'
   | 'RADAR_TENDER_CREATED'
   | 'SAVED_SEARCH_CREATE'
-  | 'SAVED_SEARCH_DELETE';
+  | 'SAVED_SEARCH_DELETE'
+  | 'WATCH_START'
+  | 'WATCH_STOP'
+  | 'WATCH_REVISION'
+  | 'WATCH_CHANGE_ACK';
 
 export async function writeAudit(params: {
   companyId: string;

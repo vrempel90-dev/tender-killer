@@ -55,6 +55,7 @@ model Company {
   procurementImports ProcurementImport[]
   opportunities      ProcurementOpportunity[]
   savedSearches      SavedSearch[]
+  watches            TenderWatch[]
 
   @@map("companies")
 }
@@ -195,6 +196,8 @@ model Tender {
   reports          Report[]
   /// Объявление, из которого создан этот тендер (если создан из RADAR).
   opportunity      ProcurementOpportunity?
+  /// Наблюдение TENDER GUARD, если тендер поставлен на контроль.
+  watch            TenderWatch?
 
   @@index([companyId, stage])
   @@map("tenders")
@@ -239,6 +242,7 @@ model Document {
   deletedAt   DateTime?
 
   extraction  DocumentExtraction?
+  watchSnapshots WatchSnapshot[]
   requirements Requirement[]
   findings    ComplianceFinding[]
   quotes      SupplierQuote[]
@@ -767,4 +771,132 @@ model SavedSearch {
   @@unique([companyId, name])
   @@index([companyId, updatedAt])
   @@map("saved_searches")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  TENDER GUARD — контроль изменений по выбранным тендерам.
+//
+//  Как и в RADAR, автоматического доступа к порталам нет: приложение не
+//  может «подсмотреть» новую редакцию объявления само. Поэтому контроль
+//  строится на том, что пользователь загружает очередную редакцию
+//  документов (или вносит новые сроки вручную), а система сравнивает её с
+//  предыдущей и говорит, что именно изменилось и чем это грозит расчёту.
+//
+//  Ограничение обозначается в интерфейсе прямо: GUARD не узнаёт об
+//  изменении сам, он фиксирует и разбирает то, что ему принесли.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Откуда взяты значения снимка.
+enum WatchSourceKind {
+  DOCUMENT // из загруженного документа
+  MANUAL // внесено пользователем вручную
+}
+
+/// Значимость изменения. Определяет, требуется ли пересчёт.
+enum ChangeSeverity {
+  CRITICAL // меняет условия участия или экономику сделки
+  MAJOR // требует внимания и, возможно, пересчёта
+  MINOR // уточнение, не меняющее решения
+  INFO // зафиксировано для истории
+}
+
+enum WatchChangeKind {
+  SUBMISSION_DEADLINE_MOVED
+  DELIVERY_DEADLINE_MOVED
+  START_PRICE_CHANGED
+  SPEC_CHANGED
+  DOCUMENT_REPLACED
+  DOCUMENT_ADDED
+  PROCUREMENT_CANCELLED
+  OTHER
+}
+
+/// Наблюдение за тендером.
+model TenderWatch {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tenderId  String  @unique
+  tender    Tender  @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  isActive     Boolean  @default(true)
+  watchedById  String?
+  /// Заметка о том, что именно контролируется.
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  snapshots WatchSnapshot[]
+  changes   WatchChange[]
+
+  @@index([companyId, isActive])
+  @@map("tender_watches")
+}
+
+/// Снимок контролируемых условий на момент редакции документов.
+model WatchSnapshot {
+  id      String      @id @default(cuid())
+  watchId String
+  watch   TenderWatch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+
+  /// Порядковый номер редакции в рамках наблюдения, начиная с 1.
+  revision   Int
+  sourceKind WatchSourceKind
+  /// Документ-основание. Снимок всегда можно сверить с файлом.
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  submissionDeadline DateTime?
+  deliveryDeadline   DateTime?
+  startPriceMinor    BigInt?
+
+  /// Нормализованный текст технического задания и его отпечаток.
+  /// Текст хранится, чтобы показывать, что именно изменилось: без него
+  /// сравнение сводилось бы к «что-то поменялось».
+  specText     String?
+  specHash     String?
+  specCharCount Int?
+
+  note          String?
+  capturedAt    DateTime @default(now())
+  capturedById  String?
+
+  changesFrom WatchChange[] @relation("ChangeFromSnapshot")
+  changesTo   WatchChange[] @relation("ChangeToSnapshot")
+
+  @@unique([watchId, revision])
+  @@index([watchId, capturedAt])
+  @@map("watch_snapshots")
+}
+
+/// Зафиксированное изменение между двумя редакциями.
+model WatchChange {
+  id      String      @id @default(cuid())
+  watchId String
+  watch   TenderWatch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+
+  fromSnapshotId String?
+  fromSnapshot   WatchSnapshot? @relation("ChangeFromSnapshot", fields: [fromSnapshotId], references: [id], onDelete: SetNull)
+  toSnapshotId   String
+  toSnapshot     WatchSnapshot  @relation("ChangeToSnapshot", fields: [toSnapshotId], references: [id], onDelete: Cascade)
+
+  kind     WatchChangeKind
+  severity ChangeSeverity
+  /// Короткая формулировка: что изменилось.
+  summary  String
+  /// Подробности: было, стало, фрагменты различий.
+  detail   Json
+  /// Требуется ли пересчёт финансовой модели.
+  requiresRecalc Boolean @default(false)
+
+  /// Результат переоценки: что изменится в расчёте. Null — если расчёта нет
+  /// или переоценка невозможна без данных.
+  financialImpact Json?
+
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  createdAt        DateTime  @default(now())
+
+  @@index([watchId, createdAt])
+  @@map("watch_changes")
 }

@@ -24,31 +24,41 @@ import { readSessionClaims } from './auth/session-claims';
  */
 
 /**
- * Модели, строки которых принадлежат компании и защищены политиками RLS.
- * Список должен совпадать с миграцией: несовпадение означает либо
- * незащищённую таблицу, либо запрос, который молча не найдёт данных.
+ * Модели, строки которых принадлежат компании, и их таблицы в БД.
+ *
+ * Список обязан совпадать с набором таблиц, на которые миграции поставили
+ * политики RLS. Несовпадение опасно в обе стороны: таблица с политикой и
+ * без модели здесь означает, что запросы к ней уйдут без переменной
+ * компании и под ролью приложения молча не найдут данных; модель без
+ * политики означает незащищённую таблицу. Соответствие проверяется тестом
+ * (tests/rls.spec.ts), который сверяет этот список с самой БД.
  */
-export const TENANT_MODELS: ReadonlySet<string> = new Set([
-  'Tender',
-  'Document',
-  'DocumentExtraction',
-  'Requirement',
-  'ComplianceRun',
-  'ComplianceFinding',
-  'LineItem',
-  'SupplierQuote',
-  'SupplierQuoteItem',
-  'FinancialModel',
-  'CompanyTaxRate',
-  'HistoricalTender',
-  'Report',
-  'ContractAnalysis',
-  'ContractRisk',
-  'CompanyProfile',
-  'ProcurementImport',
-  'ProcurementOpportunity',
-  'SavedSearch',
-]);
+export const TENANT_TABLES: Readonly<Record<string, string>> = {
+  Tender: 'tenders',
+  Document: 'documents',
+  DocumentExtraction: 'document_extractions',
+  Requirement: 'requirements',
+  ComplianceRun: 'compliance_runs',
+  ComplianceFinding: 'compliance_findings',
+  LineItem: 'line_items',
+  SupplierQuote: 'supplier_quotes',
+  SupplierQuoteItem: 'supplier_quote_items',
+  FinancialModel: 'financial_models',
+  CompanyTaxRate: 'company_tax_rates',
+  HistoricalTender: 'historical_tenders',
+  Report: 'reports',
+  ContractAnalysis: 'contract_analyses',
+  ContractRisk: 'contract_risks',
+  CompanyProfile: 'company_profiles',
+  ProcurementImport: 'procurement_imports',
+  ProcurementOpportunity: 'procurement_opportunities',
+  SavedSearch: 'saved_searches',
+  TenderWatch: 'tender_watches',
+  WatchSnapshot: 'watch_snapshots',
+  WatchChange: 'watch_changes',
+};
+
+export const TENANT_MODELS: ReadonlySet<string> = new Set(Object.keys(TENANT_TABLES));
 
 interface TenantContext {
   companyId: string;

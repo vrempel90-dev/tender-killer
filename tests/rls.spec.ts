@@ -11,6 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
+import { TENANT_TABLES } from '../src/lib/db';
 
 const ownerUrl = process.env.DATABASE_URL ?? '';
 const appUrl = process.env.APP_DATABASE_URL ?? '';
@@ -158,14 +159,11 @@ test('роль приложения не обходит RLS, не меняет �
 });
 
 test('все таблицы с данными компаний защищены политикой', async () => {
-  // Если миграция добавит таблицу компании без политики, тест об этом скажет.
-  const expected = [
-    'company_profiles', 'company_tax_rates', 'compliance_findings', 'compliance_runs',
-    'contract_analyses', 'contract_risks', 'document_extractions', 'documents',
-    'financial_models', 'historical_tenders', 'line_items', 'procurement_imports',
-    'procurement_opportunities', 'reports', 'requirements', 'saved_searches',
-    'supplier_quote_items', 'supplier_quotes', 'tenders',
-  ];
+  // Список берётся из кода приложения, а не дублируется здесь: расхождение
+  // между TENANT_TABLES и политиками в БД — это ошибка в обе стороны.
+  // Таблица с политикой и без модели означает, что запросы к ней уйдут без
+  // переменной компании и под ролью приложения ничего не найдут.
+  const expected = Object.values(TENANT_TABLES).sort();
   const { rows } = await owner.query(
     "SELECT c.relname AS table, c.relrowsecurity AS enabled, count(p.polname)::int AS policies "
     + 'FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace '
@@ -179,4 +177,19 @@ test('все таблицы с данными компаний защищены 
     expect(row.enabled, `RLS выключен: ${row.table}`).toBe(true);
     expect(row.policies, `нет политики: ${row.table}`).toBeGreaterThan(0);
   }
+
+  // Обратная проверка: таблица с политикой, не объявленная в приложении.
+  const withPolicies = await owner.query(
+    "SELECT DISTINCT c.relname AS table FROM pg_class c "
+    + 'JOIN pg_namespace n ON n.oid = c.relnamespace '
+    + 'JOIN pg_policy p ON p.polrelid = c.oid '
+    + "WHERE n.nspname = 'public' ORDER BY c.relname",
+  );
+  const unregistered = withPolicies.rows
+    .map((row) => row.table as string)
+    .filter((table) => !expected.includes(table));
+  expect(
+    unregistered,
+    `таблицы с политикой RLS не объявлены в TENANT_TABLES: ${unregistered.join(', ')}`,
+  ).toEqual([]);
 });
