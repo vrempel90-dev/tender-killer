@@ -9,12 +9,18 @@ RUN npm ci --no-audit --no-fund
 
 COPY . .
 
-# Prisma Client генерируется до сборки Next.js
-RUN npx prisma generate
-
-# DATABASE_URL на этапе сборки не нужен: страницы рендерятся по запросу.
+# Prisma CLI reads DATABASE_URL when loading prisma.config.ts even for client generation.
+# A non-routable placeholder is used only during image build: no real DB is contacted.
+# The production DATABASE_URL is injected by Railway at container runtime.
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build npx prisma generate
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build npm run build
+
+# Complete, lockfile-pinned migration runtime in a separate one-shot image.
+# Includes Prisma CLI, PostgreSQL adapter, tsx, dotenv, schema and tax seed source.
+# Railway migrations use this target with the schema owner, the web service uses runner.
+FROM builder AS migrator
+CMD ["sh", "-c", "npm run db:deploy && npm run db:seed"]
 
 # Parser worker dependencies must be present even when Next tree-shakes a parser.
 FROM node:22-alpine AS production-deps
@@ -54,7 +60,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.workers ./.workers
 
 # Каталог для документов пользователей. В образ документы не попадают.
 RUN mkdir -p /app/storage && chown nextjs:nodejs /app/storage
-VOLUME ["/app/storage"]
 
 USER nextjs
 EXPOSE 3000
