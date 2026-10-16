@@ -150,6 +150,9 @@ services:
       - clamav-signatures:/var/lib/clamav
     networks:
       - scan-private
+      # Dedicated outbound-only network for FreshClam definition updates.
+      # No ports are published, so this does not expose the scanner on the host.
+      - av-updates
     healthcheck:
       test: ['CMD', 'clamdscan', '--ping=1']
       interval: 15s
@@ -174,3 +177,6 @@ networks:
     internal: true
   scan-private:
     internal: true
+  # ClamAV alone needs outbound Internet to refresh its virus database.
+  av-updates:
+    driver: bridge
