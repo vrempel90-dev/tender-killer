@@ -1,5 +1,10 @@
 # Локальный AI: Ollama и Qwen3
 
+Для Railway подготовлен закрытый endpoint ollama.railway.internal:11434.
+Это доверенное имя внутри изолированного environment с WireGuard; публичные
+URL по-прежнему запрещены. План и неподтверждённые deployment gates:
+[Railway staging](railway-staging.md).
+
 По умолчанию TENDER KILLER использует локальную `qwen3:8b`. Облегчённая модель — `qwen3:4b`. Ключи OpenAI/Anthropic и `AI_EXTERNAL_TRANSFER_APPROVED=true` для локальной обработки не нужны. Модели не загружаются сборкой, миграцией, health check или запуском приложения.
 
 ## Что подключено

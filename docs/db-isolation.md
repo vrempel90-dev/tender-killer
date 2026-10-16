@@ -128,7 +128,7 @@ psql "$ADMIN_DATABASE_URL" \
 ## 5. Что намеренно не покрыто
 
 Таблицы аутентификации — `companies`, `users`, `sessions`,
-`recovery_codes`, `audit_logs` — политиками не покрыты.
+`recovery_codes`, `password_reset_tokens`, `audit_logs` — политиками не покрыты.
 
 Причина: к ним обращаются **до** того, как компания известна. Вход по
 e-mail и паролю ищет пользователя по e-mail; неудачная попытка входа

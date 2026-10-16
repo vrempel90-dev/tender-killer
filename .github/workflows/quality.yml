@@ -63,6 +63,7 @@ jobs:
       - run: npm run verify
       - run: npx tsx scripts/check-antivirus.ts
       - run: npm run build
+      - run: node scripts/check-standalone.mjs
       - run: npx playwright install --with-deps chromium
       - name: HTTP security integration tests
         run: |

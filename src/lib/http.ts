@@ -9,6 +9,7 @@ import { DocumentIntegrityError } from './documents/storage';
 import { EncryptionKeyError } from './documents/encryption';
 import { RequestError } from './security/request';
 import { jsonSafe } from './serialize';
+import { trustedClientIp } from './security/client-ip';
 
 export function jsonOk<T>(data: T, status = 200) {
   return NextResponse.json({ ok: true, data: jsonSafe(data) }, { status, headers: { 'Cache-Control': 'private, no-store' } });
@@ -71,7 +72,5 @@ export function handleApiError(error: unknown) {
 
 /** IP клиента из заголовков прокси. */
 export function clientIp(request: Request): string | null {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0]?.trim() ?? null;
-  return request.headers.get('x-real-ip');
+  return trustedClientIp(request);
 }

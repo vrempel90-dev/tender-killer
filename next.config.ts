@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // они используют нативные/файловые зависимости.
   serverExternalPackages: ['pdfjs-dist', 'pdfkit', 'exceljs', 'mammoth', '@prisma/client'],
   output: 'standalone',
+  // pdfjs resolves this worker dynamically; Next tracing otherwise omits it.
+  outputFileTracingIncludes: { '/*': ['./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'] },
   // Reset secrets must not appear in Next development request logs.
   logging: { incomingRequests: { ignore: [/\/reset-password(?:\?|$)/] } },
   async headers() {
