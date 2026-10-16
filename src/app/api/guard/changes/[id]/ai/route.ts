@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!change.fromSnapshot?.specText || !change.toSnapshot.specText) return jsonError('Текст обеих редакций недоступен. Требует ручной проверки.', 422);
     const result = await interpretSources({ kind: 'GUARD', first: change.fromSnapshot.specText, second: change.toSnapshot.specText, signal: request.signal });
     await writeAudit({ companyId: session.companyId, userId: session.userId, action: 'AI_SEMANTIC_RUN',
-      entity: 'WatchChange', entityId: id, metadata: { kind: 'GUARD', analysis: result } });
+      entity: 'WatchChange', entityId: id, metadata: { kind: 'GUARD', model: result.model, provider: result.provider, modelDigest: result.modelDigest, promptVersion: result.promptVersion, classification: result.classification, quoteVerified: result.quoteVerified, tokenUsage: result.tokenUsage } });
     return jsonOk(result);
   } catch (error) {
     if (error instanceof AiNotConfiguredError || error instanceof AiResponseError) return jsonError(error.message, 503);

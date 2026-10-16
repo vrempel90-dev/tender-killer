@@ -125,7 +125,7 @@ export async function POST(request: Request, { params }: Params) {
           model: meta.model,
           provider: meta.provider,
           modelDigest: meta.modelDigest,
-          limitations: meta.limitations,
+          limitationCount: meta.limitations.length,
           promptVersion: meta.promptVersion,
           tokenUsage: meta.tokenUsage,
         },

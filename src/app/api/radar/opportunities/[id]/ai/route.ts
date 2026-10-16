@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!profile) return jsonError('Заполните профиль компании', 422);
     const result = await interpretSources({ kind: 'RADAR', first: JSON.stringify(profile), second: JSON.stringify(opportunity), signal: request.signal });
     await writeAudit({ companyId: session.companyId, userId: session.userId, action: 'AI_SEMANTIC_RUN',
-      entity: 'ProcurementOpportunity', entityId: id, metadata: { kind: 'RADAR', analysis: result } });
+      entity: 'ProcurementOpportunity', entityId: id, metadata: { kind: 'RADAR', model: result.model, provider: result.provider, modelDigest: result.modelDigest, promptVersion: result.promptVersion, classification: result.classification, quoteVerified: result.quoteVerified, tokenUsage: result.tokenUsage } });
     return jsonOk(result);
   } catch (error) {
     if (error instanceof AiNotConfiguredError || error instanceof AiResponseError) return jsonError(error.message, 503);

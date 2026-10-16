@@ -175,7 +175,7 @@ export async function POST(request: Request, { params }: Params) {
           promptVersion: meta.promptVersion,
           provider: meta.provider,
           modelDigest: meta.modelDigest,
-          limitations: meta.limitations,
+          limitationCount: meta.limitations.length,
           tokenUsage: meta.tokenUsage,
         },
       });
