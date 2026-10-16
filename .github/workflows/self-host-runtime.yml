@@ -1,0 +1,94 @@
+# Real Docker runtime smoke: complements static Compose and Next.js test suites.
+# Runs only in isolated GitHub-hosted runners with synthetic secrets/data.
+name: Self-Hosted Runtime
+
+on:
+  pull_request:
+    paths:
+      - 'docker-compose.yml'
+      - 'docker-compose.model-install.yml'
+      - 'Dockerfile'
+      - 'scripts/db-roles.sql'
+      - 'scripts/install-ollama-model.sh'
+      - '.github/workflows/self-host-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stack:
+    name: Full stack with real ClamAV
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      POSTGRES_PASSWORD: ci-ephemeral-postgres-password
+      APP_DB_PASSWORD: ci-ephemeral-app-password
+      SESSION_SECRET: ci-ephemeral-session-secret-1234567890-abc
+      DOCUMENT_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      OLLAMA_MODEL: qwen3:4b
+      OLLAMA_MEMORY_LIMIT: 5g
+      CLAMAV_MEMORY_LIMIT: 3g
+      APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Validate resolved configuration
+        run: docker compose config --quiet
+      - name: Build web and migration images (before ClamAV uses RAM)
+        run: docker compose build app migrate
+      - name: Start isolated services with migrations, RLS and scanner
+        run: docker compose up -d
+      - name: Wait for complete application readiness
+        run: |
+          status=1
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/health > /tmp/tk-health.json 2>/dev/null; then
+              status=0
+              break
+            fi
+            sleep 3
+          done
+          if [ "$status" -ne 0 ]; then
+            docker compose ps
+            docker compose logs --tail=120 db migrate db-roles clamav app
+            exit 1
+          fi
+          cat /tmp/tk-health.json
+      - name: Verify private backends and ClamAV
+        run: |
+          docker compose exec -T clamav clamdscan --ping=1
+          docker compose exec -T ollama ollama list
+          docker compose exec -T app node -e "fetch('http://ollama:11434/api/tags').then(r=>{if(!r.ok)process.exit(1);return r.json()}).then(x=>console.log('Private Ollama API reachable; installed models:', x.models.length)).catch(()=>process.exit(1))"
+          docker compose ps
+      - name: Stop and remove synthetic data
+        if: always()
+        run: docker compose down --volumes --remove-orphans || true
+
+  ollama-live:
+    name: CPU inference with actual Qwen3 4B
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OLLAMA_MODEL: qwen3:4b
+      OLLAMA_MEMORY_LIMIT: 6g
+      OLLAMA_FLASH_ATTENTION: '0'
+      OLLAMA_KV_CACHE_TYPE: f16
+      POSTGRES_PASSWORD: ci-unused-postgres-secret
+      APP_DB_PASSWORD: ci-unused-app-password
+      SESSION_SECRET: ci-unused-session-secret-1234567890
+      DOCUMENT_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Start isolated Ollama service
+        run: docker compose up -d ollama
+      - name: Explicit one-time model installation into persistent volume
+        run: docker compose -f docker-compose.yml -f docker-compose.model-install.yml run --rm --no-deps model-install qwen3:4b
+      - name: Generate real response with CPU (no paid API)
+        run: |
+          timeout 240 docker compose exec -T ollama ollama run qwen3:4b 'Ответь одним словом: ГОТОВО.' > /tmp/tk-model-response.txt
+          test -s /tmp/tk-model-response.txt
+          head -c 1200 /tmp/tk-model-response.txt
+          echo
+      - name: Stop and remove synthetic model volume
+        if: always()
+        run: docker compose down --volumes --remove-orphans || true
