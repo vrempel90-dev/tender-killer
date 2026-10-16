@@ -27,6 +27,7 @@ export type AuditAction =
   | 'AI_REQUIREMENTS_RUN'
   | 'AI_COMPLIANCE_RUN'
   | 'AI_CONTRACT_RUN'
+  | 'AI_SEMANTIC_RUN'
   | 'QUOTE_IMPORT'
   | 'QUOTE_DELETE'
   | 'HISTORY_IMPORT'
@@ -66,6 +67,6 @@ export async function writeAudit(params: {
     });
   } catch (error) {
     // Журнал не должен ломать основную операцию, но молчать тоже нельзя.
-    console.error('Не удалось записать событие в журнал операций:', error);
+    console.error(JSON.stringify({ event: 'audit_write_failed', type: error instanceof Error ? error.name : 'UnknownError' }));
   }
 }

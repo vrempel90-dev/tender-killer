@@ -119,7 +119,7 @@ export function CompliancePanel({
           {!aiConfigured ? (
             <NotImplementedNotice
               feature="Автоматическая проверка документов"
-              requires="Требуется переменная окружения ANTHROPIC_API_KEY."
+              requires="AI-модель недоступна. Обратитесь к администратору."
             />
           ) : null}
 

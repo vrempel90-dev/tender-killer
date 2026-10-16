@@ -8,6 +8,7 @@
  */
 
 import { findQuotePage } from '../documents/extract';
+import Decimal from 'decimal.js';
 
 export interface SourceDocument {
   id: string;
@@ -282,4 +283,38 @@ export function verifyExtractionQuote(
       'Цитата не найдена в тексте документа — формулировка могла быть изменена '
       + 'при извлечении. Подтвердите запись вручную.',
   };
+}
+
+/** Explicit decimal numerals only. No guessed conversions, word-numbers or math. */
+export function explicitNumbers(text: string): string[] {
+  return (text.match(/\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)?/g) ?? [])
+    .flatMap(value => { try { return [new Decimal(value.replace(/[ \u00a0\u202f]/g, '').replace(',', '.')).toString()]; } catch { return []; } });
+}
+
+export function numberInQuote(value: number, quote: string): boolean {
+  return Number.isFinite(value) && explicitNumbers(quote).includes(new Decimal(value).toString());
+}
+
+export function claimsNumbersGrounded(claim: string, quote: string): boolean {
+  const source = new Set(explicitNumbers(quote));
+  return explicitNumbers(claim).every(n => source.has(n));
+}
+
+function numberWithContext(value: number, quote: string, before: RegExp, after: RegExp): boolean {
+  for (const match of quote.matchAll(/\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)?/g)) {
+    if (!numberInQuote(value, match[0])) continue;
+    const index = match.index;
+    if (before.test(quote.slice(Math.max(0, index - 60), index)) || after.test(quote.slice(index + match[0].length, index + match[0].length + 40))) return true;
+  }
+  return false;
+}
+
+export function quantityInQuote(value: number, quote: string): boolean {
+  return numberWithContext(value, quote, /(?:количество|кол-во|объ[её]м)\s*[:-]?\s*$/i,
+    /^\s*(?:шт(?=[.\s,;:]|$)|штук|штука|компл|кг(?=[.\s,;:]|$)|тонн|метр|пар[аы]?(?=[.\s,;:]|$)|единиц)/i);
+}
+
+export function priceInQuote(value: number, quote: string): boolean {
+  return numberWithContext(value, quote, /(?:цена|стоимость)(?:\s+за\s+единицу)?\s*[:-]?\s*$/i,
+    /^\s*(?:тенге|тг(?=[.\s,;:]|$)|₸|KZT\b)/i);
 }

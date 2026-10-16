@@ -37,6 +37,7 @@ import {
   type SearchFilters,
 } from '@/lib/radar/filters';
 import { RadarImportForm } from './radar-import-form';
+import { InterpretationButton } from '@/components/ai/interpretation-button';
 
 export interface ImportSummary {
   id: string;
@@ -917,6 +918,7 @@ function OpportunityCard({
           ) : null}
         </div>
 
+        {onToTender && <InterpretationButton endpoint={`/api/radar/opportunities/${item.id}/ai`} label="AI: сопоставить с профилем" />}
         {expanded ? (
           <div className="space-y-2 rounded-lg bg-ink-50 p-3 text-[13px]">
             {item.match.blockers.length > 0 ? (

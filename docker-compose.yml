@@ -64,12 +64,24 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
       AI_EXTERNAL_TRANSFER_APPROVED: ${AI_EXTERNAL_TRANSFER_APPROVED:-false}
-      AI_DAILY_TOKEN_BUDGET: ${AI_DAILY_TOKEN_BUDGET:-0}
-      AI_COMPANY_DAILY_TOKEN_BUDGET: ${AI_COMPANY_DAILY_TOKEN_BUDGET:-0}
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      AI_DAILY_TOKEN_BUDGET: ${AI_DAILY_TOKEN_BUDGET:-2000000}
+      AI_COMPANY_DAILY_TOKEN_BUDGET: ${AI_COMPANY_DAILY_TOKEN_BUDGET:-500000}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-180000}
+      AI_QUEUE_TIMEOUT_MS: ${AI_QUEUE_TIMEOUT_MS:-10000}
+      AI_MAX_PARALLEL: ${AI_MAX_PARALLEL:-1}
+      AI_CONTEXT_TOKENS: ${AI_CONTEXT_TOKENS:-16384}
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-2048}
+      AI_CHUNK_CHARS: ${AI_CHUNK_CHARS:-2500}
+      AI_MAX_DOCUMENT_CHARS: ${AI_MAX_DOCUMENT_CHARS:-250000}
+      AI_MAX_CHUNKS: ${AI_MAX_CHUNKS:-40}
+      AI_DAILY_CALL_LIMIT: ${AI_DAILY_CALL_LIMIT:-100}
       STORAGE_DIR: /app/storage
       # Документы шифруются на диске (docs/document-security.md).
       # Без ключа загрузка документов в production отключена.
-      DOCUMENT_ENCRYPTION_KEY: ${DOCUMENT_ENCRYPTION_KEY:?DOCUMENT_ENCRYPTION_KEY обязателен: 32 байта в base64, npm run keygen:documents}
+      DOCUMENT_ENCRYPTION_KEY: "${DOCUMENT_ENCRYPTION_KEY:?DOCUMENT_ENCRYPTION_KEY обязателен: 32 байта в base64, npm run keygen:documents}"
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-26214400}
       CLAMAV_HOST: ${CLAMAV_HOST:-}
       CLAMAV_PORT: ${CLAMAV_PORT:-3310}
@@ -78,10 +90,47 @@ services:
       NODE_ENV: production
     ports:
       - '127.0.0.1:3000:3000'
+    networks:
+      - default
+      - ai-private
     volumes:
       # Документы пользователей хранятся в томе, а не в образе и не в Git
       - storage-data:/app/storage
 
+  # No published port, no Internet route. Pulling models is an explicit admin task.
+  ollama:
+    image: ollama/ollama:0.33.3
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NO_CLOUD: '1'
+      OLLAMA_NUM_PARALLEL: '1'
+      OLLAMA_MAX_LOADED_MODELS: '1'
+      OLLAMA_MAX_QUEUE: '8'
+      OLLAMA_DEBUG_LOG_REQUESTS: 'false'
+      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
+      OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-q8_0}
+      LLAMA_ARG_CACHE_RAM: '256'
+      OLLAMA_CONTEXT_LENGTH: ${AI_CONTEXT_TOKENS:-16384}
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - ai-private
+    healthcheck:
+      test: ['CMD', 'ollama', 'list']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${OLLAMA_MEMORY_LIMIT:-16g}
+    pids_limit: 256
+
 volumes:
   db-data:
   storage-data:
+  ollama-models:
+
+networks:
+  ai-private:
+    internal: true

@@ -1,0 +1,199 @@
+{
+  "createdAt": "2026-10-16T07:10:55.132Z",
+  "promptVersion": "2.0.0-local",
+  "hardware": {
+    "platform": "win32",
+    "cpu": "Intel(R) Core(TM) i5-14400F",
+    "logicalCpus": 16,
+    "ramBytes": 34055774208
+  },
+  "note": "Evidence/number grounding and reference coverage are automatic proxies. Semantic precision requires human review. Allocated model memory is not peak system memory.",
+  "runs": [
+    {
+      "model": "qwen3:4b",
+      "modelDigest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+      "documentId": "stickers-1163451",
+      "sourceUrl": "https://zakup.sk.kz/eprocfilestorage/open-api/files/download/f774e1ae-b3c3-48fb-8763-b488329a9e23-2025-mdb",
+      "sha256": "604e9d82e294acff65e696a5e17a010b15bb8f12b7647030e6e258e7e8210620",
+      "pages": [
+        35
+      ],
+      "chars": 1542,
+      "chunks": 2,
+      "validResponses": 2,
+      "durationMs": 34435,
+      "allocatedBytes": 5098103111,
+      "vramBytes": 5098103111,
+      "extracted": 8,
+      "verifiedQuotes": 6,
+      "groundedConclusions": 6,
+      "numericOrQuoteFailures": 2,
+      "referenceCoverage": [
+        {
+          "id": "delivery-10-days",
+          "covered": true
+        },
+        {
+          "id": "ddp",
+          "covered": false
+        },
+        {
+          "id": "payment",
+          "covered": true
+        },
+        {
+          "id": "sticker-size",
+          "covered": true
+        },
+        {
+          "id": "sheets",
+          "covered": true
+        }
+      ],
+      "errors": [],
+      "numericClaimMismatches": 0
+    },
+    {
+      "model": "qwen3:4b",
+      "modelDigest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+      "documentId": "seals-1107119",
+      "sourceUrl": "https://zakup.sk.kz/eprocfilestorage/open-api/files/download/54437cb6-c54d-463c-828a-7d0dc993e489-2025-mdb",
+      "sha256": "7d74a187cb0b8b97ebb7521d8ba7aa612d10dc71719d207939261aea9b780829",
+      "pages": [
+        36
+      ],
+      "chars": 2484,
+      "chunks": 2,
+      "validResponses": 2,
+      "durationMs": 10390,
+      "allocatedBytes": 5098103111,
+      "vramBytes": 5098103111,
+      "extracted": 9,
+      "verifiedQuotes": 7,
+      "groundedConclusions": 7,
+      "numericOrQuoteFailures": 2,
+      "referenceCoverage": [
+        {
+          "id": "six-seals",
+          "covered": true
+        },
+        {
+          "id": "resistant-material",
+          "covered": true
+        },
+        {
+          "id": "reinforcement",
+          "covered": true
+        },
+        {
+          "id": "delivery-date",
+          "covered": true
+        },
+        {
+          "id": "ddp",
+          "covered": false
+        }
+      ],
+      "errors": [],
+      "numericClaimMismatches": 0
+    },
+    {
+      "model": "qwen3:8b",
+      "modelDigest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+      "documentId": "stickers-1163451",
+      "sourceUrl": "https://zakup.sk.kz/eprocfilestorage/open-api/files/download/f774e1ae-b3c3-48fb-8763-b488329a9e23-2025-mdb",
+      "sha256": "604e9d82e294acff65e696a5e17a010b15bb8f12b7647030e6e258e7e8210620",
+      "pages": [
+        35
+      ],
+      "chars": 1542,
+      "chunks": 2,
+      "validResponses": 2,
+      "durationMs": 115998,
+      "allocatedBytes": 7812121885,
+      "vramBytes": 6285783203,
+      "extracted": 10,
+      "verifiedQuotes": 10,
+      "groundedConclusions": 10,
+      "numericOrQuoteFailures": 0,
+      "referenceCoverage": [
+        {
+          "id": "delivery-10-days",
+          "covered": true
+        },
+        {
+          "id": "ddp",
+          "covered": true
+        },
+        {
+          "id": "payment",
+          "covered": true
+        },
+        {
+          "id": "sticker-size",
+          "covered": true
+        },
+        {
+          "id": "sheets",
+          "covered": true
+        }
+      ],
+      "errors": [],
+      "numericClaimMismatches": 0
+    },
+    {
+      "model": "qwen3:8b",
+      "modelDigest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+      "documentId": "seals-1107119",
+      "sourceUrl": "https://zakup.sk.kz/eprocfilestorage/open-api/files/download/54437cb6-c54d-463c-828a-7d0dc993e489-2025-mdb",
+      "sha256": "7d74a187cb0b8b97ebb7521d8ba7aa612d10dc71719d207939261aea9b780829",
+      "pages": [
+        36
+      ],
+      "chars": 2484,
+      "chunks": 2,
+      "validResponses": 2,
+      "durationMs": 111846,
+      "allocatedBytes": 7812121885,
+      "vramBytes": 6285783203,
+      "extracted": 16,
+      "verifiedQuotes": 15,
+      "groundedConclusions": 15,
+      "numericOrQuoteFailures": 1,
+      "referenceCoverage": [
+        {
+          "id": "six-seals",
+          "covered": true
+        },
+        {
+          "id": "resistant-material",
+          "covered": true
+        },
+        {
+          "id": "reinforcement",
+          "covered": true
+        },
+        {
+          "id": "delivery-date",
+          "covered": true
+        },
+        {
+          "id": "ddp",
+          "covered": true
+        }
+      ],
+      "errors": [],
+      "numericClaimMismatches": 0
+    }
+  ],
+  "runtimeSettings": {
+    "OLLAMA_FLASH_ATTENTION": "0",
+    "OLLAMA_KV_CACHE_TYPE": "f16",
+    "LLAMA_ARG_CACHE_RAM": 8192,
+    "num_ctx": 16384,
+    "maxOutputTokens": 2048,
+    "temperature": 0,
+    "thinking": false
+  },
+  "measurementLimitations": "Single pass, sampled allocated model memory, not peak host RSS. Baseline overlapped with app/build work; optimized run had no simultaneous AI requests. Numeric claim mismatches checked separately against source-quote numerals; semantic correctness is not established."
+}

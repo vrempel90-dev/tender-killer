@@ -1,0 +1,10 @@
+# Optional NVIDIA GPU acceleration. Base Compose works on CPU.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

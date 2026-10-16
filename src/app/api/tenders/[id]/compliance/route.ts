@@ -122,6 +122,7 @@ export async function POST(request: Request, { params }: Params) {
           label: r.label ?? r.text.slice(0, 120),
         })),
         supplierDocuments: toSourceDocuments(documents),
+        signal: request.signal,
       });
 
       await dbTransaction(async (tx) => {
@@ -148,7 +149,7 @@ export async function POST(request: Request, { params }: Params) {
             status: 'SUCCEEDED',
             finishedAt: new Date(),
             aiModel: meta.model,
-            tokenUsage: meta.tokenUsage as unknown as object,
+            tokenUsage: { ...meta.tokenUsage, provider: meta.provider, modelDigest: meta.modelDigest, limitations: meta.limitations, adjustedCount: meta.adjustedCount } as unknown as object,
           },
         });
       });
@@ -166,6 +167,10 @@ export async function POST(request: Request, { params }: Params) {
           findings: findings.length,
           adjustedByVerification: meta.adjustedCount,
           model: meta.model,
+          promptVersion: meta.promptVersion,
+          provider: meta.provider,
+          modelDigest: meta.modelDigest,
+          limitationCount: meta.limitations.length,
           tokenUsage: meta.tokenUsage,
         },
       });

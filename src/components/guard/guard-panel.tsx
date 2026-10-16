@@ -31,6 +31,7 @@ import { Field, Input, Select } from '@/components/ui/field';
 import { StatusNotice } from '@/components/ui/status-notice';
 import { CHANGE_KIND_LABELS, SEVERITY_LABELS, type ChangeKind, type ChangeSeverity } from '@/lib/guard/compare';
 import { VERDICT_LABELS, type RiskVerdict } from '@/lib/guard/risk';
+import { InterpretationButton } from '@/components/ai/interpretation-button';
 
 export interface WatchChangeRow {
   id: string;
@@ -630,6 +631,7 @@ function ChangeRow({
         </div>
       </div>
 
+      {canWrite && change.fromRevision !== null && <InterpretationButton endpoint={`/api/guard/changes/${change.id}/ai`} label="AI: объяснить изменение" />}
       {open ? (
         <div className="mt-2.5 space-y-2.5 border-t border-ink-100 pt-2.5 text-[13px]">
           <p className="flex items-center gap-1.5 text-[12px] text-ink-400">

@@ -192,7 +192,7 @@ export default async function TenderPage({
               <CardTitle>Рабочий процесс: шаг {completed} из {steps.length}</CardTitle>
               <CardDescription>
                 Каждый шаг добавляет данные в расчёт. Шаги, помеченные как
-                недоступные, требуют настройки AI-ключа.
+                недоступные, требуют настройки AI-модели.
               </CardDescription>
             </CardHeader>
             <CardBody className="space-y-2">
@@ -221,7 +221,7 @@ export default async function TenderPage({
                       <p className="text-[12px] text-ink-400">{step.hint}</p>
                     </div>
                     {step.blocked ? (
-                      <Badge tone="caution">нужен ключ AI</Badge>
+                      <Badge tone="caution">настройте AI-модель</Badge>
                     ) : step.done ? (
                       <Badge tone="positive">готово</Badge>
                     ) : (

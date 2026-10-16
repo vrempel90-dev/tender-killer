@@ -56,6 +56,8 @@ export const TENANT_TABLES: Readonly<Record<string, string>> = {
   TenderWatch: 'tender_watches',
   WatchSnapshot: 'watch_snapshots',
   WatchChange: 'watch_changes',
+  AiAnalysisJob: 'ai_analysis_jobs',
+  AiAnalysisChunk: 'ai_analysis_chunks',
 };
 
 export const TENANT_MODELS: ReadonlySet<string> = new Set(Object.keys(TENANT_TABLES));

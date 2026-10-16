@@ -52,7 +52,7 @@ describe('запись и чтение документа', () => {
     expect(read.equals(CONTENT)).toBe(true);
   });
 
-  it('каталог компании и файл недоступны другим пользователям системы', async () => {
+  it.skipIf(process.platform === 'win32')('POSIX: каталог компании и файл имеют закрытые биты доступа (Windows использует ACL)', async () => {
     await saveFile(RELATIVE, CONTENT);
     const dir = await stat(path.dirname(resolveStoragePath(RELATIVE)));
     const file = await stat(resolveStoragePath(RELATIVE));

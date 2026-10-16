@@ -202,7 +202,7 @@ export function SourcingPanel({
             <NotImplementedNotice
               feature="Автоматическое извлечение позиций"
               requires={
-                'Требуется ANTHROPIC_API_KEY. Позиции можно добавить вручную '
+                'AI-модель недоступна. Позиции можно добавить вручную '
                 + 'при вводе предложения поставщика.'
               }
             />

@@ -3,7 +3,7 @@
  * Проверяется поведение при недоступном ключе и при негодных ответах модели.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyzeContract, checkCompliance, extractLineItems, extractRequirements } from '../analyze';
 import { AiNotConfiguredError, getAiModel, truncateForPrompt } from '../client';
 import type { SourceDocument } from '../verify';
@@ -28,10 +28,12 @@ describe('поведение без настроенного API-ключа', ()
   const originalKey = process.env.ANTHROPIC_API_KEY;
 
   beforeEach(() => {
+    vi.stubEnv('AI_PROVIDER', 'anthropic');
     delete process.env.ANTHROPIC_API_KEY;
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     if (originalKey !== undefined) process.env.ANTHROPIC_API_KEY = originalKey;
   });
 
@@ -125,8 +127,10 @@ describe('подготовка текста для модели', () => {
 });
 
 describe('выбор модели', () => {
+  beforeEach(() => vi.stubEnv('AI_PROVIDER', 'anthropic'));
   const original = process.env.ANTHROPIC_MODEL;
   afterEach(() => {
+    vi.unstubAllEnvs();
     if (original === undefined) delete process.env.ANTHROPIC_MODEL;
     else process.env.ANTHROPIC_MODEL = original;
   });

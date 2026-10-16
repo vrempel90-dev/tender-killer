@@ -86,6 +86,7 @@ export async function POST(request: Request, { params }: Params) {
     try {
       const { requirements, meta } = await extractRequirements({
         documents: toSourceDocuments(documents),
+        signal: request.signal,
       });
 
       if (body.replaceExisting) {
@@ -104,7 +105,7 @@ export async function POST(request: Request, { params }: Params) {
           text: req.text,
           label: req.label,
           pageNumber: req.pageNumber,
-          sourceQuote: req.sourceQuote,
+          sourceQuote: req.quoteVerified ? req.sourceQuote : `${req.sourceQuote} [Требует ручной проверки: ${req.verificationNote}]`,
           isMandatory: req.isMandatory,
           confirmedByUser: false,
           origin: 'AI',
@@ -122,6 +123,9 @@ export async function POST(request: Request, { params }: Params) {
           extracted: requirements.length,
           unverifiedQuotes: requirements.filter((r) => !r.quoteVerified).length,
           model: meta.model,
+          provider: meta.provider,
+          modelDigest: meta.modelDigest,
+          limitationCount: meta.limitations.length,
           promptVersion: meta.promptVersion,
           tokenUsage: meta.tokenUsage,
         },

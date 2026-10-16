@@ -221,6 +221,7 @@ test('ГЛАВНОЕ: наблюдение другой компании нед�
     where: { watch: { companyId: companyA } },
   });
   expect((await b.post(`/api/guard/changes/${change.id}/ack`)).status()).toBe(404);
+  expect((await b.post(`/api/guard/changes/${change.id}/ai`, { data: {} })).status()).toBe(404);
   expect((await b.get('/api/guard/watches')).status()).toBe(200);
   expect((await (await b.get('/api/guard/watches')).json()).data).toEqual([]);
 });
