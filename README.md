@@ -112,21 +112,32 @@ npm run build      # production-сборка
 
 ---
 
-## Запуск в Docker
+## Автономная установка на сервере покупателя (без платных AI API)
+
+**Инструкция:** [docs/SELF_HOSTED_INSTALL.md](docs/SELF_HOSTED_INSTALL.md).
+
+В `docker-compose.yml` входят Next.js, PostgreSQL, **Ollama + Qwen3**, настоящий **ClamAV**, отдельные миграции и минимально привилегированная роль БД. БД, AI и антивирус не имеют публичных портов; документы, модели и сигнатуры ClamAV находятся в постоянных томах.
 
 ```bash
-cp .env.example .env     # задайте SESSION_SECRET, POSTGRES_PASSWORD, APP_URL и CLAMAV_HOST
-docker compose up --build
+cp .env.example .env    # установите уникальные пароли и ключи
+chmod 600 .env
+# Выберите в .env OLLAMA_MODEL=qwen3:4b или qwen3:8b
+docker compose up -d --build
+# Модель ставится отдельно, чтобы не скачивать её при каждом запуске:
+docker compose -f docker-compose.yml -f docker-compose.model-install.yml run --rm --no-deps model-install qwen3:4b
+docker compose exec ollama ollama list
 ```
 
-`docker compose` поднимает PostgreSQL и приложение, применяет миграции и
-загружает справочник ставок. Приложение будет на <http://localhost:3000>.
+**Важные условия:**
+- В self-host Compose `AI_PROVIDER=ollama`, внешний AI отключён; OpenAI/Codex/Anthropic API-ключи не нужны. Требуется собственное оборудование, соответствующее модели; это *не обещание бесплатного облачного хостинга*.
+- ClamAV обязателен и может несколько минут загружать сигнатуры при первом старте.
+- Без официального токена доступа к порталам RADAR/GUARD используют импорт CSV/XLSX и ручное сравнение редакций, а не фоновое сканирование госпорталов.
+- Восстановление пароля по email требует настроенного и подтверждённого отправителя. Без него сервис честно возвращает ошибку 503; тестовая отправка не выдаётся за доставку.
+- Production на Railway остаётся на прежнем релизе: этот PR не переключает ветку/миграции и не создаёт платных сервисов.
 
 ### Railway
 
-Проект собирается из `Dockerfile` без изменений. Нужно задать переменные:
-`DATABASE_URL`, `SESSION_SECRET`, при необходимости `ANTHROPIC_API_KEY`,
-`STORAGE_DIR` (постоянный том) и `APP_URL`.
+Развёртывание на Railway **не является бесплатным по CPU/RAM**; даже в Pro лимит включённого потребления $20 применяется ко всему workspace. До отдельного разрешения владельца не развертывать Ollama/ClamAV и не применять миграции к рабочей БД. См. [план обновления](docs/production-update-plan.md).
 
 ---
 
