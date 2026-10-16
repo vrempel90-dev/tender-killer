@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 25
     env:
       STAGING_BASE_URL: https://tk-validation-web-staging.up.railway.app
+      STAGING_AI_DOCUMENT_TEST: 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
