@@ -26,18 +26,8 @@ async function main() {
     const effectiveFrom = new Date(`${rate.effectiveFrom}T00:00:00.000Z`);
     await prisma.taxRateConfig.upsert({
       where: { key_effectiveFrom: { key: rate.key, effectiveFrom } },
-      update: {
-        label: rate.label,
-        ratePercent: rate.ratePercent,
-        sourceTitle: rate.sourceTitle,
-        sourceUrl: rate.sourceUrl,
-        effectiveTo: rate.effectiveTo
-          ? new Date(`${rate.effectiveTo}T00:00:00.000Z`)
-          : null,
-        notes: rate.needsVerification
-          ? `⚠️ ТРЕБУЕТ СВЕРКИ С ПЕРВОИСТОЧНИКОМ. ${rate.notes ?? ''}`.trim()
-          : (rate.notes ?? null),
-      },
+      // Preserve settings edited by a company administrator after initial provisioning.
+      update: {},
       create: {
         key: rate.key,
         label: rate.label,
