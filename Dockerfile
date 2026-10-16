@@ -50,7 +50,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_module
 
 # Каталог для документов пользователей. В образ документы не попадают.
 RUN mkdir -p /app/storage && chown nextjs:nodejs /app/storage
-VOLUME ["/app/storage"]
 
 USER nextjs
 EXPOSE 3000
