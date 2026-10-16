@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Banknote, Calculator } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { formatMinorKzt, formatRatioAsPercent } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
 import { ButtonLink } from '@/components/ui/button';
@@ -21,7 +21,7 @@ interface SavedResultShape {
 }
 
 export default async function FinancePage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   const models = await prisma.financialModel.findMany({
     where: { tender: { companyId: session.companyId } },

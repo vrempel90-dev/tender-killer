@@ -31,7 +31,9 @@ export function LoginForm() {
         setError(payload.error ?? 'Не удалось войти');
         return;
       }
-      router.push('/dashboard');
+      // Куда идти, решает сервер: при включённом втором факторе это /mfa.
+      const next = typeof payload.data?.next === 'string' ? payload.data.next : '/dashboard';
+      router.push(next);
       router.refresh();
     } catch {
       setError('Сервер недоступен. Повторите попытку.');

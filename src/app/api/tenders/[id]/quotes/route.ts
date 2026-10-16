@@ -1,3 +1,5 @@
+import { readJson } from '@/lib/security/request';
+import { toMinor } from '@/lib/money';
 /**
  * Коммерческие предложения поставщиков.
  *
@@ -37,8 +39,10 @@ const CreateQuoteSchema = z.object({
   /** Документ-основание: загруженное КП или прайс. */
   documentId: z.string().nullable().optional(),
   currency: z.string().length(3).default('KZT'),
-  fxRate: z.number().min(0).max(1e6).nullable().optional(),
+  fxRate: z.number().positive().max(1e6).nullable().optional(),
   pricesIncludeVat: z.boolean().default(true),
+  supplierChargesVat: z.boolean().nullable().optional(),
+  valuesConfirmed: z.boolean().optional().default(false),
   validUntil: z.iso.date().nullable().optional(),
   deliveryDays: z.number().int().min(0).max(3650).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
@@ -85,7 +89,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const data = CreateQuoteSchema.parse(await request.json());
+    const data = CreateQuoteSchema.parse(await readJson(request));
 
     const tender = await prisma.tender.findFirst({
       where: { id, companyId: session.companyId },
@@ -138,7 +142,9 @@ export async function POST(request: Request, { params }: Params) {
         contact: data.contact ?? null,
         documentId: data.documentId ?? null,
         // Подтверждённым считается предложение с документом-основанием.
-        verification: data.documentId ? 'VERIFIED' : 'UNVERIFIED',
+        verification: data.documentId && data.valuesConfirmed ? 'VERIFIED' : 'UNVERIFIED',
+        valuesConfirmed: data.valuesConfirmed,
+        supplierChargesVat: data.supplierChargesVat ?? null,
         currency: data.currency,
         fxRate: data.fxRate ?? null,
         pricesIncludeVat: data.pricesIncludeVat,
@@ -150,7 +156,7 @@ export async function POST(request: Request, { params }: Params) {
             name: item.name,
             unit: item.unit,
             quantity: item.quantity,
-            unitPriceMinor: BigInt(Math.round(item.unitPrice * 100)),
+            unitPriceMinor: BigInt(toMinor(item.unitPrice)),
             lineItemId: item.lineItemId ?? null,
             specMatch: item.specMatch,
             specMatchNote: item.specMatchNote ?? null,

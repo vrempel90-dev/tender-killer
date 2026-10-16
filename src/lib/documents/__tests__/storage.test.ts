@@ -95,14 +95,14 @@ describe('проверка загружаемых файлов', () => {
   });
 
   it('список разрешённых расширений ограничен документами', () => {
-    expect(ALLOWED_EXTENSIONS).toEqual(['.pdf', '.docx', '.xlsx', '.xls']);
+    expect(ALLOWED_EXTENSIONS).toEqual(['.pdf', '.docx', '.xlsx']);
   });
 });
 
 describe('пути хранения', () => {
   it('раскладывает файлы по каталогам компаний', () => {
     const relative = buildStoragePath('company-123', 'Спецификация.pdf');
-    expect(relative.startsWith('company-123/')).toBe(true);
+    expect(relative.replace(/\\/g, '/').startsWith('company-123/')).toBe(true);
     expect(relative.endsWith('.pdf')).toBe(true);
     // имя файла не содержит исходного названия: нет утечки через путь
     expect(relative).not.toContain('Спецификация');

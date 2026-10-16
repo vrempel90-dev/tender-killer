@@ -16,6 +16,12 @@ RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
+# Parser worker dependencies must be present even when Next tree-shakes a parser.
+FROM node:22-alpine AS production-deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund
+
 # ─────────────────────────── Запуск ───────────────────────────
 FROM node:22-alpine AS runner
 
@@ -30,23 +36,21 @@ ENV HOSTNAME=0.0.0.0
 # Шрифт с поддержкой кириллицы нужен для генерации PDF-отчётов.
 RUN apk add --no-cache font-dejavu
 
+# Runtime executes Node only. Keep npm, migration CLI and build tooling out of it.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
 
 # standalone-сборка Next.js
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=production-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.workers ./.workers
 
-# Миграции, схема и seed нужны для запуска db:deploy в контейнере
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin ./node_modules/.bin
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tsx ./node_modules/tsx
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
+# Migration/seed tools run in a separate one-shot builder service, never at app startup.
 
 # Каталог для документов пользователей. В образ документы не попадают.
 RUN mkdir -p /app/storage && chown nextjs:nodejs /app/storage

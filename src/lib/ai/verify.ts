@@ -18,6 +18,8 @@ export interface SourceDocument {
   extractionStatus: 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | 'PENDING' | 'PROCESSING';
   /** Номера страниц без текстового слоя. */
   unreadablePages: number[];
+  /** The model did not receive all extracted text. */
+  analysisTruncated?: boolean;
 }
 
 export interface QuoteVerification {
@@ -71,31 +73,7 @@ export function verifyQuote(
     }
   }
 
-  // Повторная попытка по длинному фрагменту цитаты: модель могла
-  // захватить лишние слова по краям.
-  const fragment = longestInnerFragment(needle);
-  if (fragment.length >= MIN_QUOTE_LENGTH * 2) {
-    for (const doc of documents) {
-      if (doc.text.length === 0) continue;
-      if (normalize(doc.text).includes(fragment)) {
-        return {
-          verified: true,
-          pageNumber: findQuotePage(doc.text, fragment),
-          documentId: doc.id,
-          documentName: doc.name,
-        };
-      }
-    }
-  }
-
   return { verified: false, pageNumber: null, documentId: null, documentName: null };
-}
-
-/** Срединный фрагмент цитаты — устойчив к лишним словам по краям. */
-function longestInnerFragment(normalized: string): string {
-  const words = normalized.split(' ');
-  if (words.length <= 4) return normalized;
-  return words.slice(1, words.length - 1).join(' ');
 }
 
 /**
@@ -107,6 +85,8 @@ export function canConcludeAbsence(documents: SourceDocument[]): {
   allowed: boolean;
   reason: string | null;
 } {
+  if (documents.some(d => d.analysisTruncated)) return { allowed: false,
+    reason: 'Текст был сокращён перед AI-анализом; вывод об отсутствии не допускается.' };
   if (documents.length === 0) {
     return {
       allowed: false,
@@ -119,7 +99,7 @@ export function canConcludeAbsence(documents: SourceDocument[]): {
   const unreadable = documents.filter(
     (d) => d.extractionStatus === 'FAILED' || d.text.length === 0,
   );
-  const partial = documents.filter((d) => d.extractionStatus === 'PARTIAL');
+  const partial = documents.filter((d) => d.extractionStatus !== 'SUCCEEDED' && d.extractionStatus !== 'FAILED');
 
   if (unreadable.length > 0) {
     return {

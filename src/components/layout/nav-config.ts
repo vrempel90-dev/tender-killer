@@ -8,7 +8,9 @@ import {
   type LucideIcon,
   PackageSearch,
   Plus,
+  Radar,
   Settings,
+  ShieldAlert,
   TrendingUp,
 } from 'lucide-react';
 
@@ -42,6 +44,20 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Новый анализ',
     icon: Plus,
     status: 'READY',
+  },
+  {
+    href: '/radar',
+    label: 'TENDER RADAR',
+    icon: Radar,
+    status: 'NEEDS_DATA',
+    description: 'Поиск закупок по импортированным выгрузкам',
+  },
+  {
+    href: '/guard',
+    label: 'TENDER GUARD',
+    icon: ShieldAlert,
+    status: 'NEEDS_DATA',
+    description: 'Контроль изменений по тендерам на контроле',
   },
   {
     href: '/finance',

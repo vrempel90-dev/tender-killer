@@ -47,7 +47,9 @@ export function RegisterForm() {
         }
         return;
       }
-      router.push('/dashboard');
+      // Владельцу компании сначала нужно подключить второй фактор.
+      const next = typeof payload.data?.next === 'string' ? payload.data.next : '/dashboard';
+      router.push(next);
       router.refresh();
     } catch {
       setError('Сервер недоступен. Повторите попытку.');

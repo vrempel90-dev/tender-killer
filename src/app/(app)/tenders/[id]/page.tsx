@@ -12,7 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { isAiConfigured } from '@/lib/env';
 import { formatMinorKzt } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
@@ -27,7 +27,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const { id } = await params;
   const tender = await prisma.tender.findFirst({
     where: { id, companyId: session.companyId },
@@ -41,7 +41,7 @@ export default async function TenderPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const { id } = await params;
 
   const tender = await prisma.tender.findFirst({

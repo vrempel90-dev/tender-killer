@@ -11,6 +11,12 @@ import {
 } from '../../money';
 
 describe('денежные операции', () => {
+  it('uses decimal rounding at a binary floating point boundary', () => {
+    expect(toMinor(1.005)).toBe(101);
+    expect(toMinor(10.075)).toBe(1008);
+    expect(() => toMinor(Number.NaN)).toThrow(RangeError);
+    expect(() => mulMinor(Number.MAX_SAFE_INTEGER, 2)).toThrow(RangeError);
+  });
   it('переводит тенге в тиын и обратно без потерь', () => {
     expect(toMinor(1_200_000)).toBe(120_000_000);
     expect(toMajor(120_000_000)).toBe(1_200_000);

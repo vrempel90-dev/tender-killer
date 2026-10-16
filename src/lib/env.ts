@@ -39,5 +39,8 @@ export function getEnv(): Env {
 
 /** Настроен ли доступ к Anthropic API (от этого зависит доступность AI-модулей). */
 export function isAiConfigured(): boolean {
-  return (process.env.ANTHROPIC_API_KEY ?? '').trim().length > 0;
+  return (process.env.ANTHROPIC_API_KEY ?? '').trim().length > 0
+    && process.env.AI_EXTERNAL_TRANSFER_APPROVED === 'true'
+    && Number(process.env.AI_DAILY_TOKEN_BUDGET) > 0
+    && Number(process.env.AI_COMPANY_DAILY_TOKEN_BUDGET) > 0;
 }

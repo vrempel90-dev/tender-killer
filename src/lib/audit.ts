@@ -10,6 +10,13 @@ export type AuditAction =
   | 'USER_LOGIN'
   | 'USER_LOGIN_FAILED'
   | 'USER_LOGOUT'
+  | 'MFA_ENROLL_START'
+  | 'MFA_ENABLED'
+  | 'MFA_DISABLED'
+  | 'MFA_VERIFIED'
+  | 'MFA_VERIFY_FAILED'
+  | 'MFA_RECOVERY_CODE_USED'
+  | 'MFA_RECOVERY_CODES_REISSUED'
   | 'TENDER_CREATE'
   | 'TENDER_UPDATE'
   | 'TENDER_DELETE'
@@ -24,7 +31,17 @@ export type AuditAction =
   | 'QUOTE_DELETE'
   | 'HISTORY_IMPORT'
   | 'REPORT_GENERATE'
-  | 'TAX_CONFIG_UPDATE';
+  | 'TAX_CONFIG_UPDATE'
+  | 'PROFILE_UPDATE'
+  | 'RADAR_IMPORT'
+  | 'RADAR_IMPORT_DELETE'
+  | 'RADAR_TENDER_CREATED'
+  | 'SAVED_SEARCH_CREATE'
+  | 'SAVED_SEARCH_DELETE'
+  | 'WATCH_START'
+  | 'WATCH_STOP'
+  | 'WATCH_REVISION'
+  | 'WATCH_CHANGE_ACK';
 
 export async function writeAudit(params: {
   companyId: string;

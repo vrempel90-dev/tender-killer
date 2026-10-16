@@ -1,0 +1,62 @@
+name: Security
+on:
+  pull_request:
+  push:
+    branches: [main, claude/laughing-heisenberg-2wdj8t]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: github/codeql-action/init@f051dc808ef3645eb0d08647ec751634ec2304ac # v4
+        with: {languages: javascript-typescript, build-mode: none}
+      - uses: github/codeql-action/analyze@f051dc808ef3645eb0d08647ec751634ec2304ac
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {fetch-depth: 0}
+      - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - run: docker build --tag tender-killer:ci .
+      - name: Read-only container runtime smoke
+        run: |
+          docker run --rm -i --network none --read-only --cap-drop ALL --security-opt no-new-privileges --entrypoint node tender-killer:ci <<'NODE'
+          const {Worker} = require('node:worker_threads');
+          (async () => {
+            await require('@node-rs/argon2').hash('runtime-test-only');
+            if (typeof require('@prisma/client').PrismaClient !== 'function') throw new Error('Prisma client missing');
+            const ExcelJS = require('exceljs');
+            const book = new ExcelJS.Workbook();
+            book.addWorksheet('test').getCell('A1').value = 'Runtime smoke only';
+            const buffer = await book.xlsx.writeBuffer();
+            await new Promise((resolve, reject) => {
+              const worker = new Worker('/app/.workers/extract.cjs', {workerData:{buffer,mode:'market'},env:{NODE_ENV:'production'},resourceLimits:{maxOldGenerationSizeMb:192}});
+              const timeout=setTimeout(()=>{void worker.terminate();reject(new Error('Parser timeout'));},30000);
+              worker.once('error',reject);
+              worker.once('message',message=>{clearTimeout(timeout);void worker.terminate();message.ok?resolve():reject(new Error('Parser failed'));});
+            });
+            console.log('Container runtime dependencies PASS');
+          })().catch(error=>{console.error(error.message);process.exitCode=1;});
+          NODE
+      - uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # pinned commit
+        with:
+          image-ref: tender-killer:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH

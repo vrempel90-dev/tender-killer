@@ -109,6 +109,7 @@ export interface PayrollInput {
 }
 
 export interface CostsInput {
+  unpricedItems?: string[];
   items: ItemCostLine[];
   otherDirect: SimpleCostLine[];
   logistics: SimpleCostLine[];

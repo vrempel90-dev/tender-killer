@@ -1,10 +1,9 @@
 import bcrypt from 'bcryptjs';
+import { hash, verify } from '@node-rs/argon2';
 
 /** Стоимость хеширования. 12 — разумный баланс для веб-приложения. */
-const SALT_ROUNDS = 12;
-
 export async function hashPassword(plain: string): Promise<string> {
-  return bcrypt.hash(plain, SALT_ROUNDS);
+  return hash(plain, { algorithm: 2 /* Argon2id */, memoryCost: 19456, timeCost: 2, parallelism: 1 });
 }
 
 export async function verifyPassword(
@@ -12,6 +11,7 @@ export async function verifyPassword(
   hash: string,
 ): Promise<boolean> {
   try {
+    if (hash.startsWith('$argon2id$')) return await verify(hash, plain);
     return await bcrypt.compare(plain, hash);
   } catch {
     return false;
@@ -20,6 +20,7 @@ export async function verifyPassword(
 
 /** Минимальные требования к паролю. */
 export function validatePasswordStrength(password: string): string | null {
+  if (password.length > 256) return 'Пароль должен быть не длиннее 256 символов';
   if (password.length < 10) {
     return 'Пароль должен быть не короче 10 символов';
   }

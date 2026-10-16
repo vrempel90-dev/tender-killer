@@ -1,0 +1,77 @@
+name: Quality
+on:
+  pull_request:
+  push:
+    branches: [main, claude/laughing-heisenberg-2wdj8t]
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tk_test
+          POSTGRES_PASSWORD: ci-ephemeral-test-only
+          POSTGRES_DB: tender_killer_test
+        ports: ['127.0.0.1:5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      # Владелец схемы: миграции, сиды и прямые проверки в тестах.
+      DATABASE_URL: postgresql://tk_test:ci-ephemeral-test-only@127.0.0.1:5432/tender_killer_test
+      # Ограниченная роль приложения: под ней работает сервер в тестах,
+      # поэтому политики RLS действуют (docs/db-isolation.md).
+      APP_DB_USER: tk_app_ci
+      APP_DB_PASSWORD: ci-ephemeral-app-role-only
+      APP_DATABASE_URL: postgresql://tk_app_ci:ci-ephemeral-app-role-only@127.0.0.1:5432/tender_killer_test
+      APP_URL: http://localhost:3000
+      # Ключ шифрования документов: сквозной тест проверяет, что файл на
+      # диске зашифрован, поэтому ключ обязателен (docs/document-security.md).
+      DOCUMENT_ENCRYPTION_KEY: Y2ktZXBoZW1lcmFsLWRvY3VtZW50LWtleS0zMmJ5dGU=
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node -e "require('fs').appendFileSync(process.env.GITHUB_ENV,'SESSION_SECRET='+require('crypto').randomBytes(48).toString('hex')+'\n')"
+      - run: npm run db:generate && npm run db:deploy && npm run db:seed
+      # Роль приложения создаётся после миграций: права должны покрыть
+      # уже созданные таблицы.
+      - name: Restricted DB role for the app
+        run: |
+          PGPASSWORD=ci-ephemeral-test-only psql \
+            -h 127.0.0.1 -U tk_test -d tender_killer_test \
+            -v app_user="$APP_DB_USER" -v app_password="$APP_DB_PASSWORD" \
+            -f scripts/db-roles.sql
+      - run: npm run verify
+      - run: npm run build
+      - name: HTTP security integration tests
+        run: |
+          # Сервер работает под ограниченной ролью: иначе RLS обходится
+          # владельцем схемы и изоляция осталась бы непроверенной.
+          DATABASE_URL="$APP_DATABASE_URL" npm run dev > /tmp/tender-killer-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:e2e -- tests/security.spec.ts tests/mfa.spec.ts tests/rls.spec.ts tests/radar.spec.ts tests/guard.spec.ts
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      # Deliberately blocks merge while known high advisories remain. Do not suppress them.
+      - run: npm audit --audit-level=high

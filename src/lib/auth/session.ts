@@ -6,12 +6,17 @@
  * по содержимому cookie.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
-import { SignJWT, jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import { randomBytes } from 'node:crypto';
+import { SignJWT } from 'jose';
 import { prisma } from '../db';
+import {
+  hashToken,
+  readSessionClaims,
+  secretKey,
+  SESSION_COOKIE,
+} from './session-claims';
 
-export const SESSION_COOKIE = 'tk_session';
+export { SESSION_COOKIE, hashToken };
 const SESSION_TTL_DAYS = 7;
 
 export interface SessionPayload {
@@ -22,20 +27,6 @@ export interface SessionPayload {
   sid: string;
 }
 
-function secretKey(): Uint8Array {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error(
-      'SESSION_SECRET не задан или короче 32 символов. Смотрите .env.example',
-    );
-  }
-  return new TextEncoder().encode(secret);
-}
-
-export function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
-
 /** Создаёт сессию в БД и возвращает подписанный токен для cookie. */
 export async function createSession(params: {
   userId: string;
@@ -44,6 +35,7 @@ export async function createSession(params: {
   userAgent?: string | null;
   ipAddress?: string | null;
 }): Promise<{ token: string; expiresAt: Date }> {
+  const signingKey = secretKey();
   const raw = randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 86_400_000);
 
@@ -68,7 +60,7 @@ export async function createSession(params: {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
-    .sign(secretKey());
+    .sign(signingKey);
 
   return { token, expiresAt };
 }
@@ -76,6 +68,14 @@ export async function createSession(params: {
 export interface VerifiedSession extends SessionPayload {
   email: string;
   name: string;
+  /** У пользователя подключён и подтверждён второй фактор. */
+  mfaEnabled: boolean;
+  /** Компания требует второй фактор для OWNER и ADMIN. */
+  companyRequiresMfaForAdmins: boolean;
+  /** Когда второй фактор был подтверждён в этой сессии. */
+  mfaVerifiedAt: Date | null;
+  /** Когда в этой сессии было последнее подтверждение перед операцией. */
+  mfaSteppedUpAt: Date | null;
 }
 
 /**
@@ -83,25 +83,13 @@ export interface VerifiedSession extends SessionPayload {
  * активность пользователя. Возвращает null, если сессия недействительна.
  */
 export async function getCurrentSession(): Promise<VerifiedSession | null> {
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-
-  let claims: Record<string, unknown>;
-  try {
-    const { payload } = await jwtVerify(token, secretKey());
-    claims = payload as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const sid = typeof claims.sid === 'string' ? claims.sid : null;
-  const raw = typeof claims.raw === 'string' ? claims.raw : null;
-  if (!sid || !raw) return null;
+  const claims = await readSessionClaims();
+  if (!claims) return null;
+  const { sid, raw } = claims;
 
   const session = await prisma.session.findUnique({
     where: { id: sid },
-    include: { user: true },
+    include: { user: { include: { company: { select: { requireMfaForAdmins: true } } } } },
   });
 
   if (
@@ -121,6 +109,10 @@ export async function getCurrentSession(): Promise<VerifiedSession | null> {
     sid: session.id,
     email: session.user.email,
     name: session.user.name,
+    mfaEnabled: session.user.totpConfirmedAt !== null,
+    companyRequiresMfaForAdmins: session.user.company.requireMfaForAdmins,
+    mfaVerifiedAt: session.mfaVerifiedAt,
+    mfaSteppedUpAt: session.mfaSteppedUpAt,
   };
 }
 

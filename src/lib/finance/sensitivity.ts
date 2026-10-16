@@ -4,7 +4,7 @@
  */
 
 import { computeCore } from './core';
-import { safeDiv } from '../money';
+import { safeDiv, mulMinor } from '../money';
 import type { FinanceInput, SensitivityResult, SensitivityRow } from './types';
 
 const DEFAULT_PRICE_DROPS = [-1, -3, -5, -7, -10, -15, -20];
@@ -58,7 +58,7 @@ export function computeSensitivity(
     row(
       input,
       p,
-      Math.round(basePrice * (1 + p / 100)),
+      mulMinor(basePrice, 1 + p / 100),
       1,
       options.financingCostOverrideMinor,
     ),
@@ -95,7 +95,7 @@ function findZeroPriceDrop(
 ): number | null {
   const profitAt = (dropRatio: number) =>
     computeCore(input, {
-      bidPriceOverrideMinor: Math.round(basePrice * (1 - dropRatio)),
+      bidPriceOverrideMinor: mulMinor(basePrice, 1 - dropRatio),
       financingCostOverrideMinor,
     }).profit.netMinor;
 

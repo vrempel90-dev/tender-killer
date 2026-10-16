@@ -36,6 +36,10 @@ model Company {
   isVatPayer Boolean  @default(true)
   /// Признак того, что компания — субъект малого предпринимательства
   isSmallBusiness Boolean @default(true)
+  /// Требовать второй фактор для ролей OWNER и ADMIN.
+  /// По умолчанию включено: эти роли меняют налоговые ставки и состав
+  /// пользователей, то есть влияют на расчёты всей компании.
+  requireMfaForAdmins Boolean @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -46,6 +50,12 @@ model Company {
   supplierQuotes   SupplierQuote[]
   reports          Report[]
   historicalTenders HistoricalTender[]
+  taxOverrides     CompanyTaxRate[]
+  profile            CompanyProfile?
+  procurementImports ProcurementImport[]
+  opportunities      ProcurementOpportunity[]
+  savedSearches      SavedSearch[]
+  watches            TenderWatch[]
 
   @@map("companies")
 }
@@ -58,6 +68,13 @@ model User {
   role         UserRole @default(OWNER)
   isActive     Boolean  @default(true)
   lastLoginAt  DateTime?
+  /// Секрет TOTP (Base32). Null, пока второй фактор не подключён.
+  totpSecret   String?
+  /// Момент подтверждения второго фактора первым корректным кодом.
+  totpConfirmedAt DateTime?
+  /// Последний использованный шаг времени TOTP: защита от повторного
+  /// применения перехваченного кода.
+  totpLastCounter BigInt?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -66,6 +83,7 @@ model User {
 
   sessions  Session[]
   auditLogs AuditLog[]
+  recoveryCodes RecoveryCode[]
 
   @@index([companyId])
   @@map("users")
@@ -83,9 +101,28 @@ model Session {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime @default(now())
+  /// Когда в этой сессии был пройден второй фактор. Null — сессия создана
+  /// только по паролю и к защищённым операциям не допускается.
+  mfaVerifiedAt DateTime?
+  /// Последнее повторное подтверждение (step-up) перед чувствительной
+  /// операцией: смена ставок, управление пользователями, удаление данных.
+  mfaSteppedUpAt DateTime?
 
   @@index([userId])
   @@map("sessions")
+}
+
+/// Одноразовые коды восстановления доступа. Хранится только Argon2id-хеш.
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("recovery_codes")
 }
 
 model AuditLog {
@@ -157,6 +194,10 @@ model Tender {
   contractAnalyses ContractAnalysis[]
   supplierQuotes   SupplierQuote[]
   reports          Report[]
+  /// Объявление, из которого создан этот тендер (если создан из RADAR).
+  opportunity      ProcurementOpportunity?
+  /// Наблюдение TENDER GUARD, если тендер поставлен на контроль.
+  watch            TenderWatch?
 
   @@index([companyId, stage])
   @@map("tenders")
@@ -201,6 +242,7 @@ model Document {
   deletedAt   DateTime?
 
   extraction  DocumentExtraction?
+  watchSnapshots WatchSnapshot[]
   requirements Requirement[]
   findings    ComplianceFinding[]
   quotes      SupplierQuote[]
@@ -389,6 +431,8 @@ model SupplierQuote {
   fxRate       Decimal?          @db.Decimal(18, 6)
   /// Включает ли цена НДС
   pricesIncludeVat Boolean       @default(true)
+  supplierChargesVat Boolean?
+  valuesConfirmed Boolean @default(false)
   validUntil   DateTime?
   deliveryDays Int?
   notes        String?
@@ -428,6 +472,7 @@ model SupplierQuoteItem {
 // ───────────────────── Финансовая модель (модуль 1) ──────────────────────────
 
 model FinancialModel {
+  provenance Json?
   id        String   @id @default(cuid())
   tenderId  String
   tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
@@ -465,9 +510,34 @@ model TaxRateConfig {
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  companyOverrides CompanyTaxRate[]
 
   @@unique([key, effectiveFrom])
   @@map("tax_rate_configs")
+}
+
+/// A company may override its own planning assumptions, never global policy.
+model CompanyTaxRate {
+  id          String @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rateId      String
+  rate        TaxRateConfig @relation(fields: [rateId], references: [id], onDelete: Cascade)
+  ratePercent Decimal @db.Decimal(9, 4)
+  confirmedBy String
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, rateId])
+  @@map("company_tax_rates")
+}
+
+/// Shared atomic fixed-window counters; keys contain hashes rather than PII.
+model RequestQuota {
+  key       String @id
+  count     Int
+  expiresAt DateTime
+  @@index([expiresAt])
+  @@map("request_quotas")
 }
 
 // ──────────────────── Анализ договора (модуль 5) ─────────────────────────────
@@ -571,4 +641,262 @@ model Report {
 
   @@index([companyId, tenderId])
   @@map("reports")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  TENDER RADAR — поиск закупок по импортированным данным.
+//
+//  Приложение НЕ загружает объявления из внешних источников само:
+//  автоматический доступ к API порталов требует законного разрешения и
+//  токенов, которых у приложения нет. Поэтому каждая закупка приходит из
+//  файла, который загрузил пользователь, и хранит ссылку на свой источник
+//  и дату актуальности. Выдуманных закупок в системе нет и быть не может:
+//  создать запись иначе, чем импортом, нельзя.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Профиль возможностей компании: по нему закупки сопоставляются с тем,
+/// что компания реально может поставить.
+model CompanyProfile {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Что компания поставляет: ключевые слова и словосочетания.
+  keywords         String[] @default([])
+  /// Чего компания не берёт: строки с этими словами отсеиваются.
+  excludedKeywords String[] @default([])
+  /// Регионы поставки. Пустой список — без ограничения по региону.
+  regions          String[] @default([])
+  /// Допустимые способы закупки. Пустой список — любые.
+  procurementTypes ProcurementType[] @default([])
+  /// Границы цены договора, в тиын.
+  minPriceMinor BigInt?
+  maxPriceMinor BigInt?
+  /// Минимальный срок поставки, который компания готова выдержать, в днях.
+  minDeliveryDays Int?
+  /// БИН заказчиков, с которыми компания работать не будет.
+  excludedCustomerBins String[] @default([])
+  /// Заказчики, которым компания уже поставляла.
+  preferredCustomerBins String[] @default([])
+  /// Сколько дней до окончания приёма заявок компании нужно на подготовку.
+  minDaysToDeadline Int?
+  notes     String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("company_profiles")
+}
+
+/// Партия импорта объявлений: источник и дата актуальности данных.
+model ProcurementImport {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Название источника, как его указал пользователь.
+  sourceName String
+  /// Ссылка на страницу источника, если есть.
+  sourceUrl  String?
+  /// Имя загруженного файла и его контрольная сумма.
+  fileName   String
+  fileSha256 String
+  /// Дата, на которую данные актуальны. Задаётся пользователем: в выгрузке
+  /// её может не быть, а угадывать такое нельзя.
+  actualAt   DateTime
+
+  rowsTotal    Int
+  rowsImported Int
+  rowsRejected Int
+  /// Почему строки отклонены — честный перечень, а не молчаливая потеря.
+  warnings     String[] @default([])
+
+  importedAt   DateTime @default(now())
+  importedById String?
+
+  opportunities ProcurementOpportunity[]
+
+  @@index([companyId, importedAt])
+  @@map("procurement_imports")
+}
+
+/// Объявление о закупке из импортированной выгрузки.
+model ProcurementOpportunity {
+  id        String            @id @default(cuid())
+  companyId String
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importId  String
+  import    ProcurementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  /// Номер объявления или лота на портале.
+  externalId      String?
+  title           String
+  customerName    String?
+  customerBin     String?
+  priceMinor      BigInt?
+  currency        String          @default("KZT")
+  procurementType ProcurementType @default(OTHER)
+  region          String?
+  /// Окончание приёма заявок.
+  deadline         DateTime?
+  deliveryDeadline DateTime?
+  sourceUrl        String?
+  /// Исходная строка выгрузки: любое значение можно проверить по источнику.
+  raw              Json
+
+  /// Тендер, созданный из этого объявления для финансового анализа.
+  tenderId String? @unique
+  tender   Tender? @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([importId, externalId])
+  @@index([companyId, deadline])
+  @@index([companyId, importId])
+  @@map("procurement_opportunities")
+}
+
+/// Сохранённый поиск: набор фильтров под именем.
+model SavedSearch {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  /// Фильтры в том же виде, в каком их принимает API поиска.
+  filters     Json
+  createdById String?
+  lastRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId, updatedAt])
+  @@map("saved_searches")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  TENDER GUARD — контроль изменений по выбранным тендерам.
+//
+//  Как и в RADAR, автоматического доступа к порталам нет: приложение не
+//  может «подсмотреть» новую редакцию объявления само. Поэтому контроль
+//  строится на том, что пользователь загружает очередную редакцию
+//  документов (или вносит новые сроки вручную), а система сравнивает её с
+//  предыдущей и говорит, что именно изменилось и чем это грозит расчёту.
+//
+//  Ограничение обозначается в интерфейсе прямо: GUARD не узнаёт об
+//  изменении сам, он фиксирует и разбирает то, что ему принесли.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Откуда взяты значения снимка.
+enum WatchSourceKind {
+  DOCUMENT // из загруженного документа
+  MANUAL // внесено пользователем вручную
+}
+
+/// Значимость изменения. Определяет, требуется ли пересчёт.
+enum ChangeSeverity {
+  CRITICAL // меняет условия участия или экономику сделки
+  MAJOR // требует внимания и, возможно, пересчёта
+  MINOR // уточнение, не меняющее решения
+  INFO // зафиксировано для истории
+}
+
+enum WatchChangeKind {
+  SUBMISSION_DEADLINE_MOVED
+  DELIVERY_DEADLINE_MOVED
+  START_PRICE_CHANGED
+  SPEC_CHANGED
+  DOCUMENT_REPLACED
+  DOCUMENT_ADDED
+  PROCUREMENT_CANCELLED
+  OTHER
+}
+
+/// Наблюдение за тендером.
+model TenderWatch {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tenderId  String  @unique
+  tender    Tender  @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  isActive     Boolean  @default(true)
+  watchedById  String?
+  /// Заметка о том, что именно контролируется.
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  snapshots WatchSnapshot[]
+  changes   WatchChange[]
+
+  @@index([companyId, isActive])
+  @@map("tender_watches")
+}
+
+/// Снимок контролируемых условий на момент редакции документов.
+model WatchSnapshot {
+  id      String      @id @default(cuid())
+  watchId String
+  watch   TenderWatch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+
+  /// Порядковый номер редакции в рамках наблюдения, начиная с 1.
+  revision   Int
+  sourceKind WatchSourceKind
+  /// Документ-основание. Снимок всегда можно сверить с файлом.
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  submissionDeadline DateTime?
+  deliveryDeadline   DateTime?
+  startPriceMinor    BigInt?
+
+  /// Нормализованный текст технического задания и его отпечаток.
+  /// Текст хранится, чтобы показывать, что именно изменилось: без него
+  /// сравнение сводилось бы к «что-то поменялось».
+  specText     String?
+  specHash     String?
+  specCharCount Int?
+
+  note          String?
+  capturedAt    DateTime @default(now())
+  capturedById  String?
+
+  changesFrom WatchChange[] @relation("ChangeFromSnapshot")
+  changesTo   WatchChange[] @relation("ChangeToSnapshot")
+
+  @@unique([watchId, revision])
+  @@index([watchId, capturedAt])
+  @@map("watch_snapshots")
+}
+
+/// Зафиксированное изменение между двумя редакциями.
+model WatchChange {
+  id      String      @id @default(cuid())
+  watchId String
+  watch   TenderWatch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+
+  fromSnapshotId String?
+  fromSnapshot   WatchSnapshot? @relation("ChangeFromSnapshot", fields: [fromSnapshotId], references: [id], onDelete: SetNull)
+  toSnapshotId   String
+  toSnapshot     WatchSnapshot  @relation("ChangeToSnapshot", fields: [toSnapshotId], references: [id], onDelete: Cascade)
+
+  kind     WatchChangeKind
+  severity ChangeSeverity
+  /// Короткая формулировка: что изменилось.
+  summary  String
+  /// Подробности: было, стало, фрагменты различий.
+  detail   Json
+  /// Требуется ли пересчёт финансовой модели.
+  requiresRecalc Boolean @default(false)
+
+  /// Результат переоценки: что изменится в расчёте. Null — если расчёта нет
+  /// или переоценка невозможна без данных.
+  financialImpact Json?
+
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  createdAt        DateTime  @default(now())
+
+  @@index([watchId, createdAt])
+  @@map("watch_changes")
 }

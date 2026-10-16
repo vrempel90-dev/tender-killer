@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 import { prisma } from '@/lib/db';
 import { requireSession, requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
@@ -33,7 +34,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const session = await requireWriteAccess();
-    const body = await request.json();
+    const body = await readJson(request);
     const data = TenderCreateSchema.parse(body);
 
     const tender = await prisma.tender.create({
