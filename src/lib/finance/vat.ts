@@ -4,7 +4,7 @@
  * разделено явно.
  */
 
-import { mulMinor } from '../money';
+import { percentOf, ratioMinor } from '../money';
 import type { VatMode } from './types';
 
 export interface VatSplit {
@@ -30,17 +30,17 @@ export function splitVat(
   vatRatePercent: number,
   vatApplies: boolean,
 ): VatSplit {
-  if (!Number.isFinite(amountMinor) || amountMinor === 0) {
+  if (!Number.isSafeInteger(amountMinor) || !Number.isFinite(vatRatePercent)) throw new RangeError('Invalid VAT input');
+  if (amountMinor === 0) {
     return { netMinor: 0, vatMinor: 0, grossMinor: 0 };
   }
   if (!vatApplies || vatRatePercent <= 0) {
     // НДС отсутствует: сумма одновременно и «без НДС», и «итого».
     return { netMinor: amountMinor, vatMinor: 0, grossMinor: amountMinor };
   }
-  const rate = vatRatePercent / 100;
   if (mode === 'INCLUSIVE') {
     // net = gross / (1 + r)
-    const net = Math.round(amountMinor / (1 + rate));
+    const net = ratioMinor(amountMinor, 100, 100 + vatRatePercent);
     return {
       netMinor: net,
       vatMinor: amountMinor - net,
@@ -48,7 +48,7 @@ export function splitVat(
     };
   }
   // EXCLUSIVE: НДС начисляется сверху
-  const vat = mulMinor(amountMinor, rate);
+  const vat = percentOf(amountMinor, vatRatePercent);
   return {
     netMinor: amountMinor,
     vatMinor: vat,
@@ -74,8 +74,8 @@ export function splitVatInput(
   if (!isVatPayer) {
     return { recoverableMinor: 0, nonRecoverableMinor: vatInputMinor };
   }
-  const share = Math.min(Math.max(recoverySharePercent, 0), 100) / 100;
-  const recoverable = mulMinor(vatInputMinor, share);
+  const share = Math.min(Math.max(recoverySharePercent, 0), 100);
+  const recoverable = percentOf(vatInputMinor, share);
   return {
     recoverableMinor: recoverable,
     nonRecoverableMinor: vatInputMinor - recoverable,

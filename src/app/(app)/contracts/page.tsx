@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { isAiConfigured } from '@/lib/env';
 import { PageHeader } from '@/components/layout/page-header';
 import { OverviewList, type OverviewRow } from '@/components/layout/overview-list';
@@ -9,7 +9,7 @@ import { NotImplementedNotice } from '@/components/ui/status-notice';
 export const metadata: Metadata = { title: 'Анализ договоров' };
 
 export default async function ContractsOverviewPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   const tenders = await prisma.tender.findMany({
     where: { companyId: session.companyId },
@@ -72,7 +72,7 @@ export default async function ContractsOverviewPage() {
         {!isAiConfigured() ? (
           <NotImplementedNotice
             feature="Анализ проекта договора"
-            requires="Требуется переменная окружения ANTHROPIC_API_KEY."
+            requires="AI-модель недоступна. Обратитесь к администратору."
           />
         ) : null}
         <OverviewList

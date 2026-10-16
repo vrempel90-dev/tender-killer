@@ -81,6 +81,8 @@ export function QuoteForm({
           ? null
           : numberOrNull(String(form.get('fxRate') ?? '')),
       pricesIncludeVat: form.get('pricesIncludeVat') === 'on',
+      supplierChargesVat: form.get('supplierChargesVat') === 'true' ? true : form.get('supplierChargesVat') === 'false' ? false : null,
+      valuesConfirmed: form.get('valuesConfirmed') === 'on',
       validUntil: emptyToNull(String(form.get('validUntil') ?? '')),
       deliveryDays: numberOrNull(String(form.get('deliveryDays') ?? '')),
       notes: emptyToNull(String(form.get('notes') ?? '')),
@@ -233,6 +235,15 @@ export function QuoteForm({
         </div>
       </div>
 
+      <Field label="Поставщик начисляет НДС">
+        {(id) => <Select id={id} name="supplierChargesVat" defaultValue="">
+          <option value="">не подтверждено</option><option value="true">Да</option><option value="false">Нет</option>
+        </Select>}
+      </Field>
+      <label className="flex items-center gap-2 text-[13px] text-ink-700">
+        <input type="checkbox" name="valuesConfirmed" />
+        Я сверил цены, валюту и условия с приложенным коммерческим предложением
+      </label>
       <div>
         <p className="mb-2 text-[13px] font-medium text-ink-700">
           Позиции предложения

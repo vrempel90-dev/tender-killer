@@ -12,7 +12,7 @@
  *     помечается как нерасчитываемый.
  */
 
-import { safeDiv } from '../money';
+import { safeDiv, mulMinor, interestMinor, percentOf } from '../money';
 import { computeCashflow } from './cashflow';
 import { computeCore, type CoreComputation } from './core';
 import { computeSensitivity } from './sensitivity';
@@ -26,7 +26,7 @@ import type {
   MissingInput,
 } from './types';
 
-export const ENGINE_VERSION = '1.0.0';
+export const ENGINE_VERSION = '1.1.0';
 const DAYS_IN_YEAR = 365;
 
 export interface CalculateOptions {
@@ -67,9 +67,7 @@ export function calculateFinance(
       (firstCashflow.workingCapital.daysInDeficit > 0
         ? firstCashflow.workingCapital.daysInDeficit
         : (input.schedule.contractDurationDays ?? 0));
-    financingCostOverrideMinor = Math.round(
-      autoLoanAmountMinor * (rate / 100) * (autoLoanDays / DAYS_IN_YEAR),
-    );
+    financingCostOverrideMinor = interestMinor(autoLoanAmountMinor, rate, autoLoanDays);
   }
 
   // ── Проход 2: окончательный расчёт ───────────────────────────────────────
@@ -211,9 +209,7 @@ export function calculateFinance(
     missingInputs: collectMissingInputs(input),
     warnings: collectWarnings(input, core, cashflow),
     verifiedCostShareRatio: verifiedShare,
-    unverifiedCostMinor: Math.round(
-      core.aggregated.unverifiedNetMinor * costFactor,
-    ),
+    unverifiedCostMinor: mulMinor(core.aggregated.unverifiedNetMinor, costFactor),
   };
 
   return result;
@@ -227,9 +223,7 @@ function resolveTargetProfit(
     return input.targets.targetNetProfitMinor;
   }
   if (input.targets.targetNetMarginPercent !== null && revenueNetMinor > 0) {
-    return Math.round(
-      (revenueNetMinor * input.targets.targetNetMarginPercent) / 100,
-    );
+    return percentOf(revenueNetMinor, input.targets.targetNetMarginPercent);
   }
   return null;
 }
@@ -459,8 +453,11 @@ function buildExplanations(
 
 // ──────────────────── Незаполненные данные и предупреждения ──────────────────
 
-function collectMissingInputs(input: FinanceInput): MissingInput[] {
+export function collectMissingInputs(input: FinanceInput): MissingInput[] {
   const missing: MissingInput[] = [];
+  if (input.costs.unpricedItems?.length) missing.push({ field: 'costs.unpricedItems',
+    label: `Нет допустимой подтверждённой цены: ${input.costs.unpricedItems.join(', ')}`,
+    affects: ['Полная себестоимость', 'Прибыль', 'ROI', 'Безубыточная цена'] });
 
   if (input.tender.bidPriceMinor === null) {
     missing.push({

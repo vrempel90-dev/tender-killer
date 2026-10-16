@@ -6,7 +6,7 @@
 import { createEmptyFinanceInput } from './defaults';
 import { buildTaxContext, type TaxRateDefinition } from './tax-config';
 import { FinanceInputSchema } from './schema';
-import type { FinanceInput, TaxRegimeCode } from './types';
+import type { FinanceInput, TaxRegimeCode, VatMode } from './types';
 
 /** Налоговые ставки из БД → формат конфигурации движка. */
 export function toRateDefinitions(
@@ -68,6 +68,8 @@ export function buildInitialInput(params: {
     unitCostMinor: number | null;
     unit: string;
     verified: boolean;
+    vatMode?: VatMode;
+    supplierChargesVat?: boolean;
   }>;
 }): FinanceInput {
   const base = createEmptyFinanceInput({
@@ -90,14 +92,14 @@ export function buildInitialInput(params: {
       quantity: i.quantity,
       unitCostMinor: i.unitCostMinor as number,
       unit: i.unit,
-      vatMode: 'INCLUSIVE' as const,
-      supplierChargesVat: true,
+      vatMode: i.vatMode ?? 'INCLUSIVE',
+      supplierChargesVat: i.supplierChargesVat ?? true,
       verified: i.verified,
     }));
 
   return {
     ...base,
     tax,
-    costs: { ...base.costs, items },
+    costs: { ...base.costs, items, unpricedItems: (params.lineItems ?? []).filter(i => i.unitCostMinor === null || i.unitCostMinor <= 0).map(i => i.name) },
   };
 }

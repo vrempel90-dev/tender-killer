@@ -12,6 +12,11 @@ import type { FinanceResult, FormulaExplanation } from '@/lib/finance/types';
 
 export function ResultsPanel({ result }: { result: FinanceResult }) {
   const profitable = result.profit.netMinor > 0;
+  if (result.missingInputs.some(m => ['tender.bidPriceMinor', 'costs', 'costs.unpricedItems'].includes(m.field))) {
+    return <StatusNotice severity="WARNING" title="MISSING — расчёт недоступен">
+      <ul>{result.missingInputs.map(m => <li key={m.field}>{m.label}: {m.affects.join(', ')}</li>)}</ul>
+    </StatusNotice>;
+  }
 
   return (
     <div className="space-y-5">

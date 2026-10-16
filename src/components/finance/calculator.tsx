@@ -53,6 +53,7 @@ export function FinanceCalculator({
   const [tab, setTab] = useState<Tab>('INPUT');
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [modelId, setModelId] = useState<string | null>(initialModelId ?? null);
@@ -91,6 +92,7 @@ export function FinanceCalculator({
       }
       setResult(body.data.result as FinanceResult);
       setScenarios(body.data.scenarios as ScenarioResult[]);
+      setMissing(body.data.status === 'MISSING' ? body.data.missingInputs.map((m: { label: string }) => m.label) : []);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       setError('Сервер недоступен. Расчёт не выполнен.');
@@ -226,7 +228,8 @@ export function FinanceCalculator({
         </div>
       ) : null}
 
-      {tab === 'RESULT' ? (
+      {missing.length > 0 ? <StatusNotice severity="WARNING" title="MISSING — заполните исходные данные">{missing.join('; ')}</StatusNotice> : null}
+      {tab === 'RESULT' && missing.length === 0 ? (
         shownResult ? (
           <ResultsPanel result={shownResult} />
         ) : (
@@ -237,9 +240,10 @@ export function FinanceCalculator({
         )
       ) : null}
 
-      {tab === 'CASHFLOW' && shownResult ? (
+      {tab === 'CASHFLOW' && shownResult && shownResult.missingInputs.length === 0 ? (
         <CashflowPanel result={shownResult} />
       ) : null}
+      {tab === 'CASHFLOW' && shownResult && shownResult.missingInputs.length > 0 ? <StatusNotice severity="WARNING">Денежный поток недоступен: {shownResult.missingInputs.map(m => m.label).join('; ')}</StatusNotice> : null}
 
       {tab === 'SENSITIVITY' && shownResult ? (
         <SensitivityPanel sensitivity={shownResult.sensitivity} />

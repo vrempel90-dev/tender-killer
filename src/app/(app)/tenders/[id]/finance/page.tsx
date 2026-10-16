@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { canWrite } from '@/lib/auth/guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { StatusNotice } from '@/components/ui/status-notice';
@@ -9,9 +9,11 @@ import { FinanceCalculator } from '@/components/finance/calculator';
 import {
   buildInitialInput,
   parseSavedInput,
-  toRateDefinitions,
 } from '@/lib/finance/from-db';
 import { TAX_CONFIG_VERSION } from '@/lib/finance/tax-config';
+import { getCompanyTaxRates } from '@/lib/finance/company-tax';
+import { toRateDefinitions } from '@/lib/finance/from-db';
+import { selectedPriceForFinance } from '@/lib/sourcing/to-finance';
 
 export const metadata: Metadata = { title: 'Экономика тендера' };
 
@@ -20,7 +22,7 @@ export default async function TenderFinancePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const { id } = await params;
 
   const [tender, company, rateRows] = await Promise.all([
@@ -29,7 +31,7 @@ export default async function TenderFinancePage({
       include: {
         lineItems: {
           orderBy: { position: 'asc' },
-          include: { selectedQuoteItem: true },
+          include: { selectedQuoteItem: { include: { quote: true } } },
         },
         financialModels: { orderBy: { updatedAt: 'desc' }, take: 1 },
       },
@@ -38,7 +40,7 @@ export default async function TenderFinancePage({
       where: { id: session.companyId },
       select: { taxRegime: true, isVatPayer: true },
     }),
-    prisma.taxRateConfig.findMany({ orderBy: { effectiveFrom: 'desc' } }),
+    getCompanyTaxRates(session.companyId),
   ]);
 
   if (!tender || !company) notFound();
@@ -64,11 +66,9 @@ export default async function TenderFinancePage({
       lineItems: tender.lineItems.map((item) => ({
         name: item.name,
         quantity: Number(item.quantity),
-        unitCostMinor: item.selectedQuoteItem
-          ? Number(item.selectedQuoteItem.unitPriceMinor)
-          : null,
+        ...selectedPriceForFinance(item.selectedQuoteItem),
         unit: item.unit,
-        verified: item.selectedQuoteItem !== null,
+
       })),
     });
   }

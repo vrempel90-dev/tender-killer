@@ -7,12 +7,44 @@
  * ≈ 90 трлн тенге, чего с огромным запасом хватает для тендеров.
  */
 
+import Decimal from 'decimal.js';
+
+export const MoneyDecimal = Decimal.clone({ precision: 40, rounding: Decimal.ROUND_HALF_UP });
 export const MINOR_UNITS_PER_MAJOR = 100;
+
+export function checkedMinor(value: Decimal.Value): number {
+  const rounded = new MoneyDecimal(value).toDecimalPlaces(0);
+  if (!rounded.isFinite() || rounded.abs().greaterThan(Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError('Money is not a safe integer');
+  }
+  return rounded.toNumber();
+}
+
+export function ratioMinor(minor: number, numerator: number, denominator: number): number {
+  if (!Number.isSafeInteger(minor) || !Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+    throw new RangeError('Invalid monetary ratio');
+  }
+  return checkedMinor(new MoneyDecimal(minor).times(numerator).div(denominator));
+}
+
+export function interestMinor(minor: number, annualPercent: number, days: number): number {
+  return checkedMinor(new MoneyDecimal(minor).times(annualPercent).times(days).div(100).div(365));
+}
+
+export function assertMinorFields(value: unknown): void {
+  if (!value || typeof value !== 'object') return;
+  for (const [key, item] of Object.entries(value)) {
+    if (key.endsWith('Minor') && typeof item === 'number' && !Number.isSafeInteger(item)) {
+      throw new RangeError('Monetary result exceeds safe integer range');
+    }
+    if (typeof item === 'object') assertMinorFields(item);
+  }
+}
 
 /** Тенге → тиын. Округление до целого тиына. */
 export function toMinor(major: number): number {
-  if (!Number.isFinite(major)) return 0;
-  return Math.round(major * MINOR_UNITS_PER_MAJOR);
+  if (!Number.isFinite(major)) throw new RangeError('Invalid monetary amount');
+  return checkedMinor(new MoneyDecimal(major).times(MINOR_UNITS_PER_MAJOR));
 }
 
 /** Тиын → тенге (может быть нецелым). */
@@ -25,13 +57,13 @@ export function toMajor(minor: number): number {
  * Используется для ставок, процентов, долей.
  */
 export function mulMinor(minor: number, factor: number): number {
-  if (!Number.isFinite(minor) || !Number.isFinite(factor)) return 0;
-  return Math.round(minor * factor);
+  if (!Number.isSafeInteger(minor) || !Number.isFinite(factor)) throw new RangeError('Invalid monetary factor');
+  return checkedMinor(new MoneyDecimal(minor).times(factor));
 }
 
 /** Процент от суммы: percentOf(1_000_000, 12) === 120_000 */
 export function percentOf(minor: number, percent: number): number {
-  return mulMinor(minor, percent / 100);
+  return ratioMinor(minor, percent, 100);
 }
 
 /** Безопасное деление: при нулевом знаменателе возвращает null, а не Infinity. */

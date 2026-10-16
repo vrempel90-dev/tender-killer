@@ -1,0 +1,12 @@
+# Explicit ADMIN action only: temporarily allow the model installer Internet access.
+# docker compose -f docker-compose.yml -f docker-compose.model-install.yml run --rm --no-deps model-install qwen3:8b
+services:
+  model-install:
+    image: ollama/ollama:0.33.3
+    profiles: [model-install]
+    entrypoint: ['/bin/sh', '/scripts/install-ollama-model.sh']
+    volumes:
+      - ollama-models:/root/.ollama
+      - ./scripts/install-ollama-model.sh:/scripts/install-ollama-model.sh:ro
+    networks:
+      - default

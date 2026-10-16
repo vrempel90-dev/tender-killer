@@ -4,15 +4,21 @@ import { prisma } from '@/lib/db';
 import { requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { handleApiError, jsonError, jsonOk } from '@/lib/http';
-import { extractDocument } from '@/lib/documents/extract';
+import { extractDocumentIsolated as extractDocument } from '@/lib/documents/isolated';
+import { inspectDocumentBytes } from '@/lib/documents/inspect';
+import { scanDocument } from '@/lib/documents/scanner';
+import { consumeQuota, acquireParserLease } from '@/lib/security/quota';
 import { readStoredFile } from '@/lib/documents/storage';
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  let release: (() => Promise<void>) | undefined;
   try {
     const session = await requireWriteAccess();
+    release = await acquireParserLease(session.companyId);
+    await consumeQuota('document-extract', session.companyId, 30, 3600);
     const { id } = await params;
 
     const document = await prisma.document.findFirst({
@@ -22,6 +28,7 @@ export async function POST(
         storagePath: true,
         mimeType: true,
         originalName: true,
+        sha256: true,
       },
     });
     if (!document || document.storagePath === '') {
@@ -35,7 +42,11 @@ export async function POST(
     });
 
     try {
-      const buffer = await readStoredFile(document.storagePath);
+      // Сверка с контрольной суммой из БД: повреждённый или подменённый
+      // файл не должен попасть в разбор как «документ пользователя».
+      const buffer = await readStoredFile(document.storagePath, document.sha256);
+      await inspectDocumentBytes(buffer, document.originalName);
+      await scanDocument(buffer);
       const outcome = await extractDocument({
         buffer,
         mimeType: document.mimeType,
@@ -82,5 +93,7 @@ export async function POST(
     }
   } catch (error) {
     return handleApiError(error);
+  } finally {
+    if (release) await release().catch(() => console.error(JSON.stringify({ event: "parser_lease_release_failed" })));
   }
 }

@@ -4,11 +4,16 @@
  * Файлы лежат ВНЕ репозитория, в каталоге STORAGE_DIR, разложенные по
  * компаниям: {STORAGE_DIR}/{companyId}/{documentId}.{ext}
  * Изоляция по каталогам — дополнительный барьер к проверке прав в БД.
+ *
+ * На диск файлы пишутся зашифрованными (AES-256-GCM, см. encryption.ts):
+ * доступ к тому или к резервной копии сам по себе не даёт содержимого.
+ * Каталоги создаются с правами 0700 — только владелец процесса.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { decryptDocument, encryptDocument } from './encryption';
 
 /** Разрешённые типы файлов. Расширение проверяется вместе с MIME-типом. */
 export const ALLOWED_UPLOAD_TYPES: Record<
@@ -24,13 +29,13 @@ export const ALLOWED_UPLOAD_TYPES: Record<
     extensions: ['.xlsx'],
     label: 'XLSX',
   },
-  'application/vnd.ms-excel': { extensions: ['.xls', '.xlsx'], label: 'XLS' },
+  'application/vnd.ms-excel': { extensions: ['.xlsx'], label: 'XLS' },
 };
 
-export const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.xls'];
+export const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.xlsx'];
 
 export function storageRoot(): string {
-  return path.resolve(process.env.STORAGE_DIR ?? './storage');
+  return path.resolve(/* turbopackIgnore: true */ process.env.STORAGE_DIR ?? './storage');
 }
 
 export function maxUploadBytes(): number {
@@ -117,12 +122,41 @@ export async function saveFile(
   buffer: Buffer,
 ): Promise<void> {
   const absolute = resolveStoragePath(relativePath);
-  await mkdir(path.dirname(absolute), { recursive: true });
-  await writeFile(absolute, buffer);
+  // 0700: каталог компании не читается другими пользователями системы.
+  await mkdir(path.dirname(absolute), { recursive: true, mode: 0o700 });
+  // mode на writeFile — только для нового файла; существующий не меняется.
+  await writeFile(absolute, encryptDocument(buffer, relativePath), { mode: 0o600 });
 }
 
-export async function readStoredFile(relativePath: string): Promise<Buffer> {
-  return readFile(resolveStoragePath(relativePath));
+export class DocumentIntegrityError extends Error {}
+
+/**
+ * Читает файл и возвращает расшифрованное содержимое.
+ *
+ * expectedSha256 — контрольная сумма из БД. Сверка нужна не для защиты от
+ * подмены (её закрывает тег GCM), а чтобы повреждение тома или рассинхрон
+ * «запись в БД есть, файл другой» обнаруживались сразу, а не выдавались
+ * пользователю как его документ.
+ */
+export async function readStoredFile(
+  relativePath: string,
+  expectedSha256?: string,
+): Promise<Buffer> {
+  const stored = await readFile(
+    /* turbopackIgnore: true */ resolveStoragePath(relativePath),
+  );
+  const { plain } = decryptDocument(stored, relativePath);
+  if (expectedSha256) {
+    const actual = sha256(plain);
+    const a = Buffer.from(actual, 'hex');
+    const b = Buffer.from(expectedSha256, 'hex');
+    if (a.byteLength !== b.byteLength || !timingSafeEqual(a, b)) {
+      throw new DocumentIntegrityError(
+        'Содержимое файла не соответствует записи в базе: документ повреждён или подменён',
+      );
+    }
+  }
+  return plain;
 }
 
 export async function deleteStoredFile(relativePath: string): Promise<void> {

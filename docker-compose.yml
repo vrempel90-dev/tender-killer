@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}
       POSTGRES_DB: ${POSTGRES_DB:-tender_killer}
     volumes:
       - db-data:/var/lib/postgresql/data
@@ -13,9 +13,37 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    ports:
-      # Прокинут для удобства отладки; в продакшене порт можно закрыть.
-      - '5432:5432'
+
+  # Миграции и справочники выполняются владельцем схемы: ему нужны права
+  # на DDL, и он намеренно обходит RLS.
+  migrate:
+    build:
+      context: .
+      target: builder
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: >-
+        postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
+    command: sh -c "npm run db:deploy && npm run db:seed"
+
+  # Роль приложения с минимальными правами: без DDL и без обхода RLS.
+  # Запускается после миграций, чтобы права покрыли созданные таблицы.
+  db-roles:
+    image: postgres:16-alpine
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}
+    volumes:
+      - ./scripts/db-roles.sql:/scripts/db-roles.sql:ro
+    command: >-
+      psql -h db -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-tender_killer}
+      -v app_user=${APP_DB_USER:-tk_app_runtime}
+      -v app_password=${APP_DB_PASSWORD:?APP_DB_PASSWORD обязателен, минимум 16 символов}
+      -f /scripts/db-roles.sql
 
   app:
     build: .
@@ -23,27 +51,86 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      db-roles:
+        condition: service_completed_successfully
     environment:
+      # Приложение работает под ограниченной ролью: политики RLS
+      # применяются к ней, DDL ей недоступен. См. docs/db-isolation.md
       DATABASE_URL: >-
-        postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
+        postgresql://${APP_DB_USER:-tk_app_runtime}:${APP_DB_PASSWORD:?APP_DB_PASSWORD обязателен, минимум 16 символов}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET обязателен, минимум 32 символа}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
+      AI_EXTERNAL_TRANSFER_APPROVED: ${AI_EXTERNAL_TRANSFER_APPROVED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      AI_DAILY_TOKEN_BUDGET: ${AI_DAILY_TOKEN_BUDGET:-2000000}
+      AI_COMPANY_DAILY_TOKEN_BUDGET: ${AI_COMPANY_DAILY_TOKEN_BUDGET:-500000}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-180000}
+      AI_QUEUE_TIMEOUT_MS: ${AI_QUEUE_TIMEOUT_MS:-10000}
+      AI_MAX_PARALLEL: ${AI_MAX_PARALLEL:-1}
+      AI_CONTEXT_TOKENS: ${AI_CONTEXT_TOKENS:-16384}
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-2048}
+      AI_CHUNK_CHARS: ${AI_CHUNK_CHARS:-2500}
+      AI_MAX_DOCUMENT_CHARS: ${AI_MAX_DOCUMENT_CHARS:-250000}
+      AI_MAX_CHUNKS: ${AI_MAX_CHUNKS:-40}
+      AI_DAILY_CALL_LIMIT: ${AI_DAILY_CALL_LIMIT:-100}
       STORAGE_DIR: /app/storage
+      # Документы шифруются на диске (docs/document-security.md).
+      # Без ключа загрузка документов в production отключена.
+      DOCUMENT_ENCRYPTION_KEY: "${DOCUMENT_ENCRYPTION_KEY:?DOCUMENT_ENCRYPTION_KEY обязателен: 32 байта в base64, npm run keygen:documents}"
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-26214400}
+      CLAMAV_HOST: ${CLAMAV_HOST:-}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      DOCUMENT_SCAN_MODE: required
       APP_URL: ${APP_URL:-http://localhost:3000}
       NODE_ENV: production
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'
+    networks:
+      - default
+      - ai-private
     volumes:
       # Документы пользователей хранятся в томе, а не в образе и не в Git
       - storage-data:/app/storage
-    # Миграции и справочник ставок применяются перед запуском приложения
-    command: >-
-      sh -c "node_modules/.bin/prisma migrate deploy &&
-             node_modules/.bin/tsx prisma/seed.ts &&
-             node server.js"
+
+  # No published port, no Internet route. Pulling models is an explicit admin task.
+  ollama:
+    image: ollama/ollama:0.33.3
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NO_CLOUD: '1'
+      OLLAMA_NUM_PARALLEL: '1'
+      OLLAMA_MAX_LOADED_MODELS: '1'
+      OLLAMA_MAX_QUEUE: '8'
+      OLLAMA_DEBUG_LOG_REQUESTS: 'false'
+      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
+      OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-q8_0}
+      LLAMA_ARG_CACHE_RAM: '256'
+      OLLAMA_CONTEXT_LENGTH: ${AI_CONTEXT_TOKENS:-16384}
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - ai-private
+    healthcheck:
+      test: ['CMD', 'ollama', 'list']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${OLLAMA_MEMORY_LIMIT:-16g}
+    pids_limit: 256
 
 volumes:
   db-data:
   storage-data:
+  ollama-models:
+
+networks:
+  ai-private:
+    internal: true

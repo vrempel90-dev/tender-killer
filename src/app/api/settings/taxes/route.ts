@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/auth/guard';
@@ -6,13 +7,13 @@ import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 
 const Schema = z.object({
   rateId: z.string().min(1),
-  ratePercent: z.number().min(0).max(1_000_000).finite(),
+  ratePercent: z.number().min(0).max(99_999).finite(),
 });
 
 export async function PATCH(request: Request) {
   try {
     const session = await requireRole('ADMIN');
-    const data = Schema.parse(await request.json());
+    const data = Schema.parse(await readJson(request));
 
     const existing = await prisma.taxRateConfig.findUnique({
       where: { id: data.rateId },
@@ -20,18 +21,12 @@ export async function PATCH(request: Request) {
     });
     if (!existing) return jsonError('Ставка не найдена', 404);
 
-    await prisma.taxRateConfig.update({
-      where: { id: data.rateId },
-      data: {
-        ratePercent: data.ratePercent,
-        // После ручной правки пометка о необходимости сверки снимается:
-        // значение изменил человек, который его проверил.
-        notes:
-          existing.notes && existing.notes.includes('ТРЕБУЕТ СВЕРКИ')
-            ? `${existing.notes.replace('⚠️ ТРЕБУЕТ СВЕРКИ С ПЕРВОИСТОЧНИКОМ. ', '')} `
-              + `Значение изменено вручную ${new Date().toISOString().slice(0, 10)}.`
-            : existing.notes,
-      },
+    if (!['VAT_REGISTRATION_THRESHOLD_MCI', 'MCI_MONTHLY_CALC_INDEX_KZT'].includes(existing.key)
+      && data.ratePercent > 100) return jsonError('Ставка должна быть от 0 до 100 %', 422);
+    await prisma.companyTaxRate.upsert({
+      where: { companyId_rateId: { companyId: session.companyId, rateId: data.rateId } },
+      create: { companyId: session.companyId, rateId: data.rateId, ratePercent: data.ratePercent, confirmedBy: session.userId },
+      update: { ratePercent: data.ratePercent, confirmedBy: session.userId },
     });
 
     await writeAudit({
@@ -48,7 +43,7 @@ export async function PATCH(request: Request) {
       },
     });
 
-    return jsonOk({ updated: true });
+    return jsonOk({ updated: true, status: 'USER_CONFIRMED' });
   } catch (error) {
     return handleApiError(error);
   }

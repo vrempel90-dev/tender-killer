@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /** Извлечение товарных позиций из технической спецификации (AI) и их правка. */
 
 import { z } from 'zod';
@@ -71,7 +72,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const raw = await request.json();
+    const raw = await readJson(request);
 
     const tender = await prisma.tender.findFirst({
       where: { id, companyId: session.companyId },
@@ -125,6 +126,7 @@ export async function POST(request: Request, { params }: Params) {
     try {
       const { items, meta } = await extractLineItems({
         documents: toSourceDocuments(documents),
+        signal: request.signal,
       });
 
       if (body.replaceExisting) {
@@ -152,7 +154,7 @@ export async function POST(request: Request, { params }: Params) {
               ? null
               : BigInt(item.customerUnitPriceMinor),
           pageNumber: item.pageNumber,
-          sourceQuote: item.sourceQuote,
+          sourceQuote: item.quoteVerified ? item.sourceQuote : `${item.sourceQuote} [Требует ручной проверки: ${item.verificationNote}]`,
           origin: 'AI',
           confirmedByUser: false,
         })),
@@ -170,6 +172,10 @@ export async function POST(request: Request, { params }: Params) {
           extracted: items.length,
           unverifiedQuotes: items.filter((i) => !i.quoteVerified).length,
           model: meta.model,
+          promptVersion: meta.promptVersion,
+          provider: meta.provider,
+          modelDigest: meta.modelDigest,
+          limitationCount: meta.limitations.length,
           tokenUsage: meta.tokenUsage,
         },
       });
@@ -199,7 +205,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const data = UpdateSchema.parse(await request.json());
+    const data = UpdateSchema.parse(await readJson(request));
 
     const item = await prisma.lineItem.findFirst({
       where: {

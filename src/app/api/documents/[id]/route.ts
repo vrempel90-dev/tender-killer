@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db';
+import { dbTransaction, prisma } from '@/lib/db';
 import { requireSession, requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
@@ -38,13 +38,13 @@ export async function DELETE(request: Request, { params }: Params) {
 
     await deleteStoredFile(document.storagePath);
 
-    await prisma.$transaction([
-      prisma.documentExtraction.deleteMany({ where: { documentId: id } }),
-      prisma.document.update({
+    await dbTransaction(async (tx) => {
+      await tx.documentExtraction.deleteMany({ where: { documentId: id } });
+      await tx.document.update({
         where: { id },
         data: { deletedAt: new Date(), storagePath: '' },
-      }),
-    ]);
+      });
+    });
 
     await writeAudit({
       companyId: session.companyId,

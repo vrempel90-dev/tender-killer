@@ -1,9 +1,13 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Database, FileClock, Percent, Users } from 'lucide-react';
+import { Database, FileClock, Percent, Radar, ShieldCheck, Users } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { requireSession, ROLE_LABELS, type Role } from '@/lib/auth/guard';
+import { ROLE_LABELS, type Role } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
+import { isMfaRequiredForRole } from '@/lib/auth/mfa/policy';
 import { isAiConfigured } from '@/lib/env';
+import { AiPanel } from '@/components/settings/ai-panel';
+import { aiSummary } from '@/lib/ai/status';
 import { maxUploadBytes } from '@/lib/documents/storage';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +18,7 @@ import { CompanySettingsForm } from './company-form';
 export const metadata: Metadata = { title: 'Настройки' };
 
 export default async function SettingsPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   const [company, users, unverifiedRates, auditCount] = await Promise.all([
     prisma.company.findUnique({ where: { id: session.companyId } }),
@@ -28,6 +32,7 @@ export default async function SettingsPage() {
         role: true,
         isActive: true,
         lastLoginAt: true,
+        totpConfirmedAt: true,
       },
     }),
     prisma.taxRateConfig.count({ where: { notes: { contains: 'ТРЕБУЕТ СВЕРКИ' } } }),
@@ -35,6 +40,18 @@ export default async function SettingsPage() {
   ]);
 
   if (!company) throw new Error('Компания не найдена');
+  let ai: ReturnType<typeof aiSummary> | null = null;
+  if (['ADMIN', 'OWNER'].includes(session.role)) {
+    try { ai = aiSummary(); } catch { /* Keep company settings available if AI configuration is invalid. */ }
+  }
+
+  // Сколько администраторов не подключили обязательный второй фактор.
+  const mfaGaps = users.filter(
+    (user) =>
+      user.isActive
+      && user.totpConfirmedAt === null
+      && isMfaRequiredForRole(user.role, company.requireMfaForAdmins),
+  ).length;
 
   return (
     <>
@@ -43,6 +60,10 @@ export default async function SettingsPage() {
         description="Параметры компании, налоговые ставки, пользователи и журнал операций."
       />
       <div className="flex-1 space-y-5 px-5 py-5 sm:px-7">
+        {['ADMIN', 'OWNER'].includes(session.role) && <Card>
+          <CardHeader><CardTitle>AI-модель</CardTitle><CardDescription>Подключение и ограничения AI-анализа.</CardDescription></CardHeader>
+          <CardBody>{ai ? <AiPanel summary={ai} /> : <p>Некорректная конфигурация AI. Обратитесь к администратору инфраструктуры.</p>}</CardBody>
+        </Card>}
         <div className="grid gap-5 xl:grid-cols-2">
           <Card>
             <CardHeader>
@@ -68,6 +89,62 @@ export default async function SettingsPage() {
           </Card>
 
           <div className="space-y-5">
+            <Card>
+              <CardHeader
+                action={
+                  <Link
+                    href="/settings/profile"
+                    className="text-[13px] font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Открыть
+                  </Link>
+                }
+              >
+                <CardTitle>
+                  <span className="flex items-center gap-2">
+                    <Radar className="size-4 text-ink-400" aria-hidden />
+                    Профиль возможностей компании
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  По нему TENDER RADAR сопоставляет закупки с тем, что компания
+                  может поставить.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card>
+              <CardHeader
+                action={
+                  <Link
+                    href="/settings/security"
+                    className="text-[13px] font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Открыть
+                  </Link>
+                }
+              >
+                <CardTitle>
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck className="size-4 text-ink-400" aria-hidden />
+                    Безопасность
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  Второй фактор, коды восстановления, активные сессии.
+                </CardDescription>
+              </CardHeader>
+              <CardBody>
+                {mfaGaps > 0 ? (
+                  <Badge tone="caution">
+                    {mfaGaps} администраторов без второго фактора
+                  </Badge>
+                ) : (
+                  <Badge tone="positive">Администраторы защищены вторым фактором</Badge>
+                )}
+              </CardBody>
+            </Card>
+
             <Card>
               <CardHeader
                 action={
@@ -112,9 +189,9 @@ export default async function SettingsPage() {
               <CardBody className="space-y-2 text-[13px]">
                 <Row label="AI-модули">
                   {isAiConfigured() ? (
-                    <Badge tone="positive">Ключ настроен</Badge>
+                    <Badge tone="positive">Конфигурация задана</Badge>
                   ) : (
-                    <Badge tone="caution">ANTHROPIC_API_KEY не задан</Badge>
+                    <Badge tone="caution">AI-модель требует настройки</Badge>
                   )}
                 </Row>
                 <Row label="Лимит загрузки файла">

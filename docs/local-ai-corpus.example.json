@@ -1,0 +1,88 @@
+{
+  "documents": [
+    {
+      "id": "stickers-1163451",
+      "path": "./public-stickers.pdf",
+      "sourceUrl": "https://zakup.sk.kz/eprocfilestorage/open-api/files/download/f774e1ae-b3c3-48fb-8763-b488329a9e23-2025-mdb",
+      "reference": [
+        {
+          "id": "delivery-10-days",
+          "terms": [
+            "10",
+            "календарных"
+          ]
+        },
+        {
+          "id": "ddp",
+          "terms": [
+            "DDP"
+          ]
+        },
+        {
+          "id": "payment",
+          "terms": [
+            "100%"
+          ]
+        },
+        {
+          "id": "sticker-size",
+          "terms": [
+            "45",
+            "12"
+          ]
+        },
+        {
+          "id": "sheets",
+          "terms": [
+            "125"
+          ]
+        }
+      ],
+      "pages": [
+        35
+      ]
+    },
+    {
+      "id": "seals-1107119",
+      "path": "./public-seals.pdf",
+      "sourceUrl": "https://zakup.sk.kz/eprocfilestorage/open-api/files/download/54437cb6-c54d-463c-828a-7d0dc993e489-2025-mdb",
+      "reference": [
+        {
+          "id": "six-seals",
+          "terms": [
+            "6",
+            "сальник"
+          ]
+        },
+        {
+          "id": "resistant-material",
+          "terms": [
+            "маслогазостойкого"
+          ]
+        },
+        {
+          "id": "reinforcement",
+          "terms": [
+            "синтетической",
+            "нитью"
+          ]
+        },
+        {
+          "id": "delivery-date",
+          "terms": [
+            "31.12.2027"
+          ]
+        },
+        {
+          "id": "ddp",
+          "terms": [
+            "DDP"
+          ]
+        }
+      ],
+      "pages": [
+        36
+      ]
+    }
+  ]
+}

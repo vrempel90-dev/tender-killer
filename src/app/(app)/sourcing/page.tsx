@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { formatMinorKzt } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
 import { OverviewList, type OverviewRow } from '@/components/layout/overview-list';
@@ -8,7 +8,7 @@ import { OverviewList, type OverviewRow } from '@/components/layout/overview-lis
 export const metadata: Metadata = { title: 'AI-Снабженец' };
 
 export default async function SourcingOverviewPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   const tenders = await prisma.tender.findMany({
     where: { companyId: session.companyId },

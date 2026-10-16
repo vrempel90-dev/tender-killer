@@ -3,6 +3,8 @@
  */
 
 import { prisma } from '../db';
+import { selectedPriceForFinance } from '../sourcing/to-finance';
+import { mulMinor } from '../money';
 import { TAX_REGIME_LABELS } from '../finance/tax-config';
 import {
   collectGaps,
@@ -217,17 +219,10 @@ export async function buildDecisionReport(params: {
   for (const item of tender.lineItems) {
     const selected = item.selectedQuoteItem;
     if (!selected) continue;
-    const rate =
-      selected.quote.currency === 'KZT'
-        ? 1
-        : selected.quote.fxRate === null
-          ? null
-          : Number(selected.quote.fxRate);
-    if (rate === null) continue;
+    const price = selectedPriceForFinance(selected);
+    if (price.unitCostMinor === null) continue;
     itemsWithConfirmedPrice += 1;
-    confirmedPurchaseCostMinor += Math.round(
-      Number(selected.unitPriceMinor) * rate * Number(item.quantity),
-    );
+    confirmedPurchaseCostMinor += mulMinor(price.unitCostMinor, Number(item.quantity));
   }
 
   const base: Omit<DecisionReportData, 'gaps'> = {

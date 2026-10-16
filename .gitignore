@@ -35,6 +35,10 @@ pnpm-debug.log*
 
 # тесты и покрытие
 /coverage
+/.workers/
+/test-results/
+/playwright-report/
+/data/
 /.vitest
 
 # Prisma
@@ -46,6 +50,9 @@ prisma/*.db-journal
 /var/
 /uploads/
 /tmp/
+
+# РЕЗЕРВНЫЕ КОПИИ — содержат данные всех компаний, даже в зашифрованном виде
+/backups/
 
 # локальные выгрузки отчётов
 /reports-out/

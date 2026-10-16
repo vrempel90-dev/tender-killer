@@ -1,0 +1,144 @@
+name: Quality
+on:
+  pull_request:
+  push:
+    branches: [main, claude/laughing-heisenberg-2wdj8t]
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: tk_test
+          POSTGRES_PASSWORD: ci-ephemeral-test-only
+          POSTGRES_DB: tender_killer_test
+        ports: ['127.0.0.1:5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+      clamav:
+        image: clamav/clamav:1.5
+        ports: ['127.0.0.1:3310:3310']
+        options: --health-cmd "clamdscan --ping=1" --health-interval 10s --health-timeout 5s --health-start-period 60s --health-retries 30
+    env:
+      # Владелец схемы: миграции, сиды и прямые проверки в тестах.
+      DATABASE_URL: postgresql://tk_test:ci-ephemeral-test-only@127.0.0.1:5432/tender_killer_test
+      # Ограниченная роль приложения: под ней работает сервер в тестах,
+      # поэтому политики RLS действуют (docs/db-isolation.md).
+      APP_DB_USER: tk_app_ci
+      APP_DB_PASSWORD: ci-ephemeral-app-role-only
+      APP_DATABASE_URL: postgresql://tk_app_ci:ci-ephemeral-app-role-only@127.0.0.1:5432/tender_killer_test
+      APP_URL: http://localhost:3000
+      APP_ENV: test
+      EMAIL_PROVIDER: test
+      EMAIL_TEST_URL: http://127.0.0.1:8025/email
+      CLAMAV_HOST: 127.0.0.1
+      CLAMAV_PORT: '3310'
+      DOCUMENT_SCAN_MODE: required
+      # Ключ шифрования документов: сквозной тест проверяет, что файл на
+      # диске зашифрован, поэтому ключ обязателен (docs/document-security.md).
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/ci-keys.mjs
+      - run: npm run db:generate && npm run db:deploy && npm run db:seed
+      - name: Preserve existing records across all migrations on PostgreSQL 18
+        env:
+          UPGRADE_DATABASE_URL: postgresql://tk_test:ci-ephemeral-test-only@127.0.0.1:5432/tender_killer_upgrade_test
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tender_killer_upgrade_test'
+          node scripts/check-migration-upgrade.mjs
+      # Роль приложения создаётся после миграций: права должны покрыть
+      # уже созданные таблицы.
+      - name: Restricted DB role for the app
+        run: |
+          PGPASSWORD=ci-ephemeral-test-only psql \
+            -h 127.0.0.1 -U tk_test -d tender_killer_test \
+            -v app_user="$APP_DB_USER" -v app_password="$APP_DB_PASSWORD" \
+            -f scripts/db-roles.sql
+      - run: npm run verify
+      - run: npx tsx scripts/check-antivirus.ts
+      - run: npm run build
+      - run: node scripts/check-standalone.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: HTTP security integration tests
+        run: |
+          # Сервер работает под ограниченной ролью: иначе RLS обходится
+          # владельцем схемы и изоляция осталась бы непроверенной.
+          DATABASE_URL="$APP_DATABASE_URL" npm run dev > /tmp/tender-killer-test.log 2>&1 &
+          server_pid=$!
+          node scripts/test-email-sink.mjs > /tmp/tender-killer-mail-test.log 2>&1 &
+          mail_pid=$!
+          trap 'kill "$server_pid" "$mail_pid" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:e2e -- tests/security.spec.ts tests/mfa.spec.ts tests/rls.spec.ts tests/radar.spec.ts tests/guard.spec.ts tests/ai-admission.spec.ts tests/password-reset.spec.ts
+      - name: Unconfigured sender fails safely in API and browser
+        env:
+          EMAIL_PROVIDER: resend
+          EMAIL_DOMAIN_VERIFIED: 'false'
+          EMAIL_FROM: ''
+          RESEND_API_KEY: ''
+          E2E_UNCONFIGURED_EMAIL: 'true'
+          E2E_BASE_URL: http://localhost:3109
+          APP_URL: http://localhost:3109
+          PORT: '3109'
+          HOSTNAME: 127.0.0.1
+        run: |
+          DATABASE_URL="$APP_DATABASE_URL" node .next/standalone/server.js > /tmp/tender-killer-no-mail.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3109/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:e2e -- tests/unconfigured-email.spec.ts
+      - name: Encrypted backup and isolated restore drill
+        env:
+          VERIFY_DATABASE_URL: postgresql://tk_test:ci-ephemeral-test-only@127.0.0.1:5432/tender_killer_restore_test
+          STORAGE_DIR: ./storage
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tender_killer_restore_test'
+          # Use clients from the already-pulled DB image. Runner pg_dump16
+          # cannot dump PG18; do not depend on an optional runner apt repository.
+          export TMPDIR="$RUNNER_TEMP/pg18-drill"
+          mkdir -p "$TMPDIR/bin"
+          for tool in pg_dump pg_restore; do
+            cat > "$TMPDIR/bin/$tool" <<'CLIENT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm --pull never --network host \
+            --user "$(id -u):$(id -g)" --volume "$TMPDIR:$TMPDIR" \
+            --env PGPASSWORD --env PGSSLMODE --entrypoint "$(basename "$0")" \
+            postgres:18-alpine "$@"
+          CLIENT
+            chmod +x "$TMPDIR/bin/$tool"
+          done
+          export PATH="$TMPDIR/bin:$PATH"
+          pg_dump --version
+          pg_restore --version
+          mkdir -p storage
+          printf 'Isolated backup drill fixture\n' > storage/backup-drill.txt
+          npm run backup:verify
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      # Deliberately blocks merge while known high advisories remain. Do not suppress them.
+      - run: npm audit --audit-level=high

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { StatusNotice } from '@/components/ui/status-notice';
@@ -31,7 +32,9 @@ export function LoginForm() {
         setError(payload.error ?? 'Не удалось войти');
         return;
       }
-      router.push('/dashboard');
+      // Куда идти, решает сервер: при включённом втором факторе это /mfa.
+      const next = typeof payload.data?.next === 'string' ? payload.data.next : '/dashboard';
+      router.push(next);
       router.refresh();
     } catch {
       setError('Сервер недоступен. Повторите попытку.');
@@ -69,6 +72,11 @@ export function LoginForm() {
         )}
       </Field>
 
+      <div className="text-right">
+        <Link href="/forgot-password" className="text-[12px] font-medium text-brand-600 hover:text-brand-700">
+          Забыли пароль?
+        </Link>
+      </div>
       <Button type="submit" loading={loading} className="w-full" size="lg">
         Войти
       </Button>

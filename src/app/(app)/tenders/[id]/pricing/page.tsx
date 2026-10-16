@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { formatMinorKzt, formatRatioAsPercent } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,7 @@ export default async function PricingPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ customer?: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const { id } = await params;
   const { customer } = await searchParams;
 

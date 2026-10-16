@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { canWrite, requireSession } from '@/lib/auth/guard';
+import { canWrite } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { PageHeader } from '@/components/layout/page-header';
 import { MarketPanel, type ImportBatch } from '@/components/market/market-panel';
 import {
@@ -13,7 +14,7 @@ import {
 export const metadata: Metadata = { title: 'Аналитика конкурентов' };
 
 export default async function MarketPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   const rows = await prisma.historicalTender.findMany({
     where: { companyId: session.companyId },

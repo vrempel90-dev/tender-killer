@@ -1,10 +1,13 @@
+import { readJson } from '@/lib/security/request';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { hashPassword, validatePasswordStrength } from '@/lib/auth/password';
 import { createSession, sessionCookieOptions, SESSION_COOKIE } from '@/lib/auth/session';
+import { evaluateMfaGate } from '@/lib/auth/mfa/policy';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 import { cookies } from 'next/headers';
+import { consumeQuota } from '@/lib/security/quota';
 
 const RegisterSchema = z.object({
   companyName: z.string().min(2, 'Укажите название компании').max(200),
@@ -24,12 +27,13 @@ const RegisterSchema = z.object({
     .default('GENERAL_VAT'),
   name: z.string().min(2, 'Укажите имя').max(120),
   email: z.email('Некорректный e-mail'),
-  password: z.string().min(10, 'Пароль должен быть не короче 10 символов'),
+  password: z.string().min(10, 'Пароль должен быть не короче 10 символов').max(256),
 });
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    await consumeQuota('auth-global', 'registration', 40, 3600);
+    const body = await readJson(request);
     const data = RegisterSchema.parse(body);
 
     const strengthError = validatePasswordStrength(data.password);
@@ -61,12 +65,14 @@ export async function POST(request: Request) {
           },
         },
       },
+      include: { company: { select: { requireMfaForAdmins: true } } },
     });
 
     const { token, expiresAt } = await createSession({
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
+      authVersion: user.authVersion,
       userAgent: request.headers.get('user-agent'),
       ipAddress: clientIp(request),
     });
@@ -83,7 +89,24 @@ export async function POST(request: Request) {
       ipAddress: clientIp(request),
     });
 
-    return jsonOk({ userId: user.id, companyId: user.companyId }, 201);
+    // Владелец компании по умолчанию обязан подключить второй фактор,
+    // поэтому следующий шаг после регистрации — /mfa, а не дашборд.
+    const gate = evaluateMfaGate({
+      role: user.role,
+      companyRequiresMfaForAdmins: user.company.requireMfaForAdmins,
+      mfaEnabled: false,
+      sessionMfaVerifiedAt: null,
+    });
+
+    return jsonOk(
+      {
+        userId: user.id,
+        companyId: user.companyId,
+        mfaGate: gate,
+        next: gate === 'OK' ? '/dashboard' : '/mfa',
+      },
+      201,
+    );
   } catch (error) {
     return handleApiError(error);
   }

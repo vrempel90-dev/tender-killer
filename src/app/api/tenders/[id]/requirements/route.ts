@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 /**
  * Извлечение требований закупки из загруженных документов (AI)
  * и ручное управление списком требований.
@@ -54,7 +55,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const body = ExtractSchema.parse(await request.json());
+    const body = ExtractSchema.parse(await readJson(request));
 
     const tender = await prisma.tender.findFirst({
       where: { id, companyId: session.companyId },
@@ -85,6 +86,7 @@ export async function POST(request: Request, { params }: Params) {
     try {
       const { requirements, meta } = await extractRequirements({
         documents: toSourceDocuments(documents),
+        signal: request.signal,
       });
 
       if (body.replaceExisting) {
@@ -103,7 +105,7 @@ export async function POST(request: Request, { params }: Params) {
           text: req.text,
           label: req.label,
           pageNumber: req.pageNumber,
-          sourceQuote: req.sourceQuote,
+          sourceQuote: req.quoteVerified ? req.sourceQuote : `${req.sourceQuote} [Требует ручной проверки: ${req.verificationNote}]`,
           isMandatory: req.isMandatory,
           confirmedByUser: false,
           origin: 'AI',
@@ -121,6 +123,9 @@ export async function POST(request: Request, { params }: Params) {
           extracted: requirements.length,
           unverifiedQuotes: requirements.filter((r) => !r.quoteVerified).length,
           model: meta.model,
+          provider: meta.provider,
+          modelDigest: meta.modelDigest,
+          limitationCount: meta.limitations.length,
           promptVersion: meta.promptVersion,
           tokenUsage: meta.tokenUsage,
         },
@@ -150,7 +155,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const data = UpdateSchema.parse(await request.json());
+    const data = UpdateSchema.parse(await readJson(request));
 
     // Требование должно принадлежать тендеру этой компании.
     const requirement = await prisma.requirement.findFirst({

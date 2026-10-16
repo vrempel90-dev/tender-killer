@@ -8,7 +8,9 @@ import {
   type LucideIcon,
   PackageSearch,
   Plus,
+  Radar,
   Settings,
+  ShieldAlert,
   TrendingUp,
 } from 'lucide-react';
 
@@ -42,6 +44,20 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Новый анализ',
     icon: Plus,
     status: 'READY',
+  },
+  {
+    href: '/radar',
+    label: 'TENDER RADAR',
+    icon: Radar,
+    status: 'NEEDS_DATA',
+    description: 'Поиск закупок по импортированным выгрузкам',
+  },
+  {
+    href: '/guard',
+    label: 'TENDER GUARD',
+    icon: ShieldAlert,
+    status: 'NEEDS_DATA',
+    description: 'Контроль изменений по тендерам на контроле',
   },
   {
     href: '/finance',
@@ -97,6 +113,6 @@ export const STATUS_LABELS: Record<
   { label: string; tone: 'positive' | 'caution' | 'neutral' }
 > = {
   READY: { label: 'Работает', tone: 'positive' },
-  NEEDS_AI_KEY: { label: 'Нужен ключ AI', tone: 'caution' },
+  NEEDS_AI_KEY: { label: 'Настройте AI-модель', tone: 'caution' },
   NEEDS_DATA: { label: 'Нужны данные', tone: 'neutral' },
 };

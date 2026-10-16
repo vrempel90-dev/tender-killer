@@ -6,7 +6,7 @@
  * платёж НДС в бюджет и фактические даты платежей. В прибыли — ничего из этого.
  */
 
-import { percentOf } from '../money';
+import { percentOf, ratioMinor } from '../money';
 import type { CoreComputation } from './core';
 import type { CashflowPeriod, FinanceInput, WorkingCapitalResult } from './types';
 
@@ -138,8 +138,7 @@ export function computeCashflow(
     core.costs.vatInputTotalMinor -
     core.aggregated.importVatMinor;
 
-  const prepayShare = schedule.procurementPrepaymentPercent / 100;
-  const prepayMinor = Math.round(purchaseGrossMinor * prepayShare);
+  const prepayMinor = percentOf(purchaseGrossMinor, schedule.procurementPrepaymentPercent);
   if (prepayMinor > 0) {
     events.push({
       day: schedule.procurementStartDay,
@@ -174,7 +173,7 @@ export function computeCashflow(
   const payrollTotal = core.costs.payrollMinor + core.costs.payrollTaxesMinor;
   if (payrollTotal > 0) {
     const months = Math.max(1, Math.ceil(Math.max(deliveryDay, 1) / 30));
-    const perMonth = Math.round(payrollTotal / months);
+    const perMonth = ratioMinor(payrollTotal, 1, months);
     for (let m = 1; m <= months; m += 1) {
       const amount = m === months ? payrollTotal - perMonth * (months - 1) : perMonth;
       events.push({

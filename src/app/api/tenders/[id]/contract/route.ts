@@ -1,7 +1,8 @@
+import { readJson } from '@/lib/security/request';
 /** Анализ проекта договора (Модуль №5). */
 
 import { z } from 'zod';
-import { prisma } from '@/lib/db';
+import { dbTransaction, prisma } from '@/lib/db';
 import { requireSession, requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
@@ -55,7 +56,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const body = RunSchema.parse(await request.json());
+    const body = RunSchema.parse(await readJson(request));
 
     const document = await prisma.document.findFirst({
       where: {
@@ -89,10 +90,11 @@ export async function POST(request: Request, { params }: Params) {
     try {
       const { risks, terms, meta } = await analyzeContract({
         document: sourceDocument,
+        signal: request.signal,
       });
 
-      await prisma.$transaction([
-        prisma.contractRisk.createMany({
+      await dbTransaction(async (tx) => {
+        await tx.contractRisk.createMany({
           data: risks.map((risk) => ({
             analysisId: analysis.id,
             category: risk.category,
@@ -108,18 +110,18 @@ export async function POST(request: Request, { params }: Params) {
             needsLawyerReview: risk.needsLawyerReview,
             financeHint: (risk.financeHint ?? {}) as object,
           })),
-        }),
-        prisma.contractAnalysis.update({
+        });
+        await tx.contractAnalysis.update({
           where: { id: analysis.id },
           data: {
             status: 'SUCCEEDED',
             finishedAt: new Date(),
             aiModel: meta.model,
             extractedTerms: terms as unknown as object,
-            tokenUsage: meta.tokenUsage as unknown as object,
+            tokenUsage: { ...meta.tokenUsage, provider: meta.provider, modelDigest: meta.modelDigest, limitations: meta.limitations, adjustedCount: meta.adjustedCount } as unknown as object,
           },
-        }),
-      ]);
+        });
+      });
 
       await writeAudit({
         companyId: session.companyId,
@@ -133,6 +135,10 @@ export async function POST(request: Request, { params }: Params) {
           risks: risks.length,
           unverifiedQuotes: risks.filter((r) => !r.quoteVerified).length,
           model: meta.model,
+          promptVersion: meta.promptVersion,
+          provider: meta.provider,
+          modelDigest: meta.modelDigest,
+          limitationCount: meta.limitations.length,
           tokenUsage: meta.tokenUsage,
         },
       });

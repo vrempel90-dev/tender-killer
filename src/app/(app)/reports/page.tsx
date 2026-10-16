@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { FileText } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { formatMinorKzt } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,7 @@ interface SavedPayload {
 }
 
 export default async function ReportsPage() {
-  const session = await requireSession();
+  const session = await requirePageSession();
 
   const [reports, tenders] = await Promise.all([
     prisma.report.findMany({

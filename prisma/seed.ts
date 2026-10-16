@@ -26,7 +26,7 @@ async function main() {
     const effectiveFrom = new Date(`${rate.effectiveFrom}T00:00:00.000Z`);
     await prisma.taxRateConfig.upsert({
       where: { key_effectiveFrom: { key: rate.key, effectiveFrom } },
-      // Preserve settings edited by a company administrator after initial provisioning.
+      // Existing dated policy is immutable to startup; changes need a new revision.
       update: {},
       create: {
         key: rate.key,

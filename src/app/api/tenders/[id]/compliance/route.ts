@@ -1,7 +1,8 @@
+import { readJson } from '@/lib/security/request';
 /** Запуск проверки документов заявки на соответствие требованиям. */
 
 import { z } from 'zod';
-import { prisma } from '@/lib/db';
+import { dbTransaction, prisma } from '@/lib/db';
 import { requireSession, requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
@@ -49,7 +50,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireWriteAccess();
     const { id } = await params;
-    const body = RunSchema.parse(await request.json());
+    const body = RunSchema.parse(await readJson(request));
 
     const tender = await prisma.tender.findFirst({
       where: { id, companyId: session.companyId },
@@ -121,10 +122,11 @@ export async function POST(request: Request, { params }: Params) {
           label: r.label ?? r.text.slice(0, 120),
         })),
         supplierDocuments: toSourceDocuments(documents),
+        signal: request.signal,
       });
 
-      await prisma.$transaction([
-        prisma.complianceFinding.createMany({
+      await dbTransaction(async (tx) => {
+        await tx.complianceFinding.createMany({
           data: findings.map((f) => ({
             runId: run.id,
             requirementId: f.requirementId,
@@ -140,17 +142,17 @@ export async function POST(request: Request, { params }: Params) {
               ? `${f.uncertaintyReason ?? ''}${f.uncertaintyReason ? ' ' : ''}(${f.adjustmentNote})`
               : f.uncertaintyReason,
           })),
-        }),
-        prisma.complianceRun.update({
+        });
+        await tx.complianceRun.update({
           where: { id: run.id },
           data: {
             status: 'SUCCEEDED',
             finishedAt: new Date(),
             aiModel: meta.model,
-            tokenUsage: meta.tokenUsage as unknown as object,
+            tokenUsage: { ...meta.tokenUsage, provider: meta.provider, modelDigest: meta.modelDigest, limitations: meta.limitations, adjustedCount: meta.adjustedCount } as unknown as object,
           },
-        }),
-      ]);
+        });
+      });
 
       await writeAudit({
         companyId: session.companyId,
@@ -165,6 +167,10 @@ export async function POST(request: Request, { params }: Params) {
           findings: findings.length,
           adjustedByVerification: meta.adjustedCount,
           model: meta.model,
+          promptVersion: meta.promptVersion,
+          provider: meta.provider,
+          modelDigest: meta.modelDigest,
+          limitationCount: meta.limitations.length,
           tokenUsage: meta.tokenUsage,
         },
       });

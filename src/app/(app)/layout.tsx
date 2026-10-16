@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
-import { getCurrentSession } from '@/lib/auth/session';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { ROLE_LABELS, type Role } from '@/lib/auth/guard';
 import { isAiConfigured } from '@/lib/env';
 import { Sidebar } from '@/components/layout/sidebar';
@@ -10,8 +9,9 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getCurrentSession();
-  if (!session) redirect('/login');
+  // Один вход для всей защищённой зоны: нет сессии — на вход, не пройден
+  // второй фактор — на /mfa.
+  const session = await requirePageSession();
 
   const company = await prisma.company.findUnique({
     where: { id: session.companyId },

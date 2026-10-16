@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/auth/guard';
@@ -26,7 +27,7 @@ const Schema = z.object({
 export async function PATCH(request: Request) {
   try {
     const session = await requireRole('ADMIN');
-    const data = Schema.parse(await request.json());
+    const data = Schema.parse(await readJson(request));
 
     // Режим может запрещать статус плательщика НДС — приводим к допустимому.
     const isVatPayer =

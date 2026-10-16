@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 
-const money = z.number().int('Суммы хранятся в целых тиын').finite();
+const money = z.number().int('Суммы хранятся в целых тиын').min(0).max(Number.MAX_SAFE_INTEGER).finite();
 const moneyNullable = money.nullable();
 const percent = z.number().min(0).max(1000).finite();
 const days = z.number().int().min(0).max(36_500);
@@ -74,6 +74,7 @@ export const FinanceInputSchema = z.object({
   }),
   tax: TaxContextSchema,
   costs: z.object({
+    unpricedItems: z.array(z.string().max(500)).max(1000).optional(),
     items: z.array(ItemCostLineSchema).max(1000),
     otherDirect: z.array(SimpleCostLineSchema).max(500),
     logistics: z.array(SimpleCostLineSchema).max(500),

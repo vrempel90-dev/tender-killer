@@ -90,6 +90,10 @@ describe('проверка цитат в документах', () => {
 });
 
 describe('допустимость вывода об отсутствии', () => {
+  it('does not infer absence from truncated model input or pending extraction', () => {
+    expect(canConcludeAbsence([{...readableDoc,analysisTruncated:true}]).allowed).toBe(false);
+    expect(canConcludeAbsence([{...readableDoc,extractionStatus:'PROCESSING'}]).allowed).toBe(false);
+  });
   it('разрешает вывод, если все документы прочитаны полностью', () => {
     const r = canConcludeAbsence([readableDoc]);
     expect(r.allowed).toBe(true);

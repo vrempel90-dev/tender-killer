@@ -12,7 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { requireSession } from '@/lib/auth/guard';
+import { requirePageSession } from '@/lib/auth/page-guard';
 import { isAiConfigured } from '@/lib/env';
 import { formatMinorKzt } from '@/lib/money';
 import { PageHeader } from '@/components/layout/page-header';
@@ -27,7 +27,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const { id } = await params;
   const tender = await prisma.tender.findFirst({
     where: { id, companyId: session.companyId },
@@ -41,7 +41,7 @@ export default async function TenderPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requirePageSession();
   const { id } = await params;
 
   const tender = await prisma.tender.findFirst({
@@ -192,7 +192,7 @@ export default async function TenderPage({
               <CardTitle>Рабочий процесс: шаг {completed} из {steps.length}</CardTitle>
               <CardDescription>
                 Каждый шаг добавляет данные в расчёт. Шаги, помеченные как
-                недоступные, требуют настройки AI-ключа.
+                недоступные, требуют настройки AI-модели.
               </CardDescription>
             </CardHeader>
             <CardBody className="space-y-2">
@@ -221,7 +221,7 @@ export default async function TenderPage({
                       <p className="text-[12px] text-ink-400">{step.hint}</p>
                     </div>
                     {step.blocked ? (
-                      <Badge tone="caution">нужен ключ AI</Badge>
+                      <Badge tone="caution">настройте AI-модель</Badge>
                     ) : step.done ? (
                       <Badge tone="positive">готово</Badge>
                     ) : (

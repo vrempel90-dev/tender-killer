@@ -1,3 +1,4 @@
+import { readJson } from '@/lib/security/request';
 import { prisma } from '@/lib/db';
 import { requireSession, requireWriteAccess } from '@/lib/auth/guard';
 import { writeAudit } from '@/lib/audit';
@@ -44,7 +45,7 @@ export async function PATCH(request: Request, { params }: Params) {
     });
     if (!existing) return jsonError('Тендер не найден', 404);
 
-    const data = TenderUpdateSchema.parse(await request.json());
+    const data = TenderUpdateSchema.parse(await readJson(request));
 
     await prisma.tender.update({
       where: { id },
