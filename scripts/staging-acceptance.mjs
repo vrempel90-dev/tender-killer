@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global fetch, URL, AbortSignal, Buffer, FormData, Blob */
 // Real staging acceptance test. Synthetic users only. Must NEVER point at production.
 import assert from 'node:assert/strict';
 import { createHmac, randomUUID, createHash } from 'node:crypto';
@@ -49,7 +50,7 @@ function client() {
       const bytes = await res.arrayBuffer();
       let data;
       if (type.includes('application/json')) {
-        try { data = JSON.parse(Buffer.from(bytes).toString('utf8')); } catch {}
+        try { data = JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { data = undefined; }
       }
       return { status: res.status, data, bytes: Buffer.from(bytes), text: Buffer.from(bytes).toString('utf8') };
     },

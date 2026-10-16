@@ -54,6 +54,10 @@ jobs:
             exit 1
           fi
           cat /tmp/tk-health.json
+      - name: Assert Node process is non-root and mounted storage is writable
+        run: |
+          docker compose exec -T app sh -c 'test "$(stat -c %u /app/storage)" -eq 1001'
+          docker compose exec -T app sh -c 'awk "/^Uid:/ {if (\$2 != 1001) exit 1}" /proc/1/status'
       - name: Verify private backends and ClamAV
         run: |
           docker compose exec -T clamav clamdscan --ping=1

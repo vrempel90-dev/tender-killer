@@ -40,7 +40,7 @@ ENV HOSTNAME=0.0.0.0
 
 # Приложение работает под непривилегированным пользователем
 # Шрифт с поддержкой кириллицы нужен для генерации PDF-отчётов.
-RUN apk add --no-cache font-dejavu
+RUN apk add --no-cache font-dejavu su-exec
 
 # Runtime executes Node only. Keep npm, migration CLI and build tooling out of it.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
@@ -61,10 +61,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/.workers ./.workers
 # Каталог для документов пользователей. В образ документы не попадают.
 RUN mkdir -p /app/storage && chown nextjs:nodejs /app/storage
 
-USER nextjs
+# A Railway/Docker mounted volume can be owned by root even though the image
+# directory was chowned at build time. The entrypoint fixes the mount point
+# and immediately drops privileges to UID/GID 1001 before running Node.
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
+USER root
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD su-exec nextjs:nodejs node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]
