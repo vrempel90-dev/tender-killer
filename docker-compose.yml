@@ -13,13 +13,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - db-private
 
   # Миграции и справочники выполняются владельцем схемы: ему нужны права
   # на DDL, и он намеренно обходит RLS.
   migrate:
     build:
       context: .
-      target: builder
+      target: migrator
+    networks:
+      - db-private
     depends_on:
       db:
         condition: service_healthy
@@ -35,6 +39,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    networks:
+      - db-private
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}
     volumes:
@@ -55,16 +61,17 @@ services:
         condition: service_completed_successfully
       db-roles:
         condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
     environment:
       # Приложение работает под ограниченной ролью: политики RLS
       # применяются к ней, DDL ей недоступен. См. docs/db-isolation.md
       DATABASE_URL: >-
         postgresql://${APP_DB_USER:-tk_app_runtime}:${APP_DB_PASSWORD:?APP_DB_PASSWORD обязателен, минимум 16 символов}@db:5432/${POSTGRES_DB:-tender_killer}?schema=public
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET обязателен, минимум 32 символа}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
-      AI_EXTERNAL_TRANSFER_APPROVED: ${AI_EXTERNAL_TRANSFER_APPROVED:-false}
-      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      # No paid AI API or fallback in the self-hosted distribution.
+      AI_EXTERNAL_TRANSFER_APPROVED: 'false'
+      AI_PROVIDER: ollama
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
       AI_DAILY_TOKEN_BUDGET: ${AI_DAILY_TOKEN_BUDGET:-2000000}
@@ -83,16 +90,25 @@ services:
       # Без ключа загрузка документов в production отключена.
       DOCUMENT_ENCRYPTION_KEY: "${DOCUMENT_ENCRYPTION_KEY:?DOCUMENT_ENCRYPTION_KEY обязателен: 32 байта в base64, npm run keygen:documents}"
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-26214400}
-      CLAMAV_HOST: ${CLAMAV_HOST:-}
+      CLAMAV_HOST: clamav
       CLAMAV_PORT: ${CLAMAV_PORT:-3310}
       DOCUMENT_SCAN_MODE: required
       APP_URL: ${APP_URL:-http://localhost:3000}
+      APP_ENV: production
+      # Email is disabled until the buyer supplies a verified sending domain.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-resend}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_DOMAIN_VERIFIED: ${EMAIL_DOMAIN_VERIFIED:-false}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      AUTH_TRUSTED_IP_HEADER: ${AUTH_TRUSTED_IP_HEADER:-}
       NODE_ENV: production
     ports:
       - '127.0.0.1:3000:3000'
     networks:
       - default
+      - db-private
       - ai-private
+      - scan-private
     volumes:
       # Документы пользователей хранятся в томе, а не в образе и не в Git
       - storage-data:/app/storage
@@ -126,11 +142,35 @@ services:
     mem_limit: ${OLLAMA_MEMORY_LIMIT:-16g}
     pids_limit: 256
 
+  # Virus definitions persist across container restarts. Scanner has no public port.
+  clamav:
+    image: clamav/clamav:1.5
+    restart: unless-stopped
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    networks:
+      - scan-private
+    healthcheck:
+      test: ['CMD', 'clamdscan', '--ping=1']
+      interval: 15s
+      timeout: 10s
+      start_period: 180s
+      retries: 40
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CLAMAV_MEMORY_LIMIT:-4g}
+    pids_limit: 256
+
 volumes:
   db-data:
   storage-data:
   ollama-models:
+  clamav-signatures:
 
 networks:
+  db-private:
+    internal: true
   ai-private:
+    internal: true
+  scan-private:
     internal: true
