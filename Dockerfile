@@ -9,12 +9,12 @@ RUN npm ci --no-audit --no-fund
 
 COPY . .
 
-# Prisma Client генерируется до сборки Next.js
-RUN npx prisma generate
-
-# DATABASE_URL на этапе сборки не нужен: страницы рендерятся по запросу.
+# Prisma CLI reads DATABASE_URL when loading prisma.config.ts even for client generation.
+# A non-routable placeholder is used only during image build: no real DB is contacted.
+# The production DATABASE_URL is injected by Railway at container runtime.
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build npx prisma generate
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build npm run build
 
 # ─────────────────────────── Запуск ───────────────────────────
 FROM node:22-alpine AS runner
