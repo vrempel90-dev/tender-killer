@@ -49,6 +49,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Match backup tools to PostgreSQL 18
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-18
+          /usr/lib/postgresql/18/bin/pg_dump --version
+          /usr/lib/postgresql/18/bin/pg_restore --version
+          echo '/usr/lib/postgresql/18/bin' >> "$GITHUB_PATH"
       - run: npm ci --no-audit --no-fund
       - run: node scripts/ci-keys.mjs
       - run: npm run db:generate && npm run db:deploy && npm run db:seed
