@@ -16,6 +16,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build npx prisma generate
 RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build npm run build
 
+# Isolated production migration tooling: install its complete dependency graph.
+# Avoid copying every build-time development dependency into the runtime image.
+FROM node:22-alpine AS migration-tools
+WORKDIR /tools
+RUN printf '{}\n' > package.json \
+ && npm install --no-audit --no-fund --no-save prisma@7.10.0 tsx@4.23.15
+
 # ─────────────────────────── Запуск ───────────────────────────
 FROM node:22-alpine AS runner
 
@@ -40,7 +47,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # Runtime CLI and transitive dependencies for Prisma migrations and tax reference seeding.
 # Keep them complete: partial copies break the Prisma CLI (e.g. missing "effect").
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=migration-tools --chown=nextjs:nodejs /tools/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/finance/tax-config.ts ./src/lib/finance/tax-config.ts
