@@ -50,7 +50,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node -e "require('fs').appendFileSync(process.env.GITHUB_ENV,'SESSION_SECRET='+require('crypto').randomBytes(48).toString('hex')+'\nDOCUMENT_ENCRYPTION_KEY='+require('crypto').randomBytes(32).toString('base64')+'\nBACKUP_ENCRYPTION_PASSPHRASE='+require('crypto').randomBytes(32).toString('hex')+'\n')"
+      - run: node scripts/ci-keys.mjs
       - run: npm run db:generate && npm run db:deploy && npm run db:seed
       # Роль приложения создаётся после миграций: права должны покрыть
       # уже созданные таблицы.
