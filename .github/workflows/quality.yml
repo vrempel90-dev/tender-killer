@@ -49,13 +49,6 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Match backup tools to PostgreSQL 18
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client-18
-          /usr/lib/postgresql/18/bin/pg_dump --version
-          /usr/lib/postgresql/18/bin/pg_restore --version
-          echo '/usr/lib/postgresql/18/bin' >> "$GITHUB_PATH"
       - run: npm ci --no-audit --no-fund
       - run: node scripts/ci-keys.mjs
       - run: npm run db:generate && npm run db:deploy && npm run db:seed
@@ -118,6 +111,24 @@ jobs:
           STORAGE_DIR: ./storage
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE tender_killer_restore_test'
+          # Use clients from the already-pulled DB image. Runner pg_dump16
+          # cannot dump PG18; do not depend on an optional runner apt repository.
+          export TMPDIR="$RUNNER_TEMP/pg18-drill"
+          mkdir -p "$TMPDIR/bin"
+          for tool in pg_dump pg_restore; do
+            cat > "$TMPDIR/bin/$tool" <<'CLIENT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm --pull never --network host \
+            --user "$(id -u):$(id -g)" --volume "$TMPDIR:$TMPDIR" \
+            --env PGPASSWORD --env PGSSLMODE --entrypoint "$(basename "$0")" \
+            postgres:18-alpine "$@"
+          CLIENT
+            chmod +x "$TMPDIR/bin/$tool"
+          done
+          export PATH="$TMPDIR/bin:$PATH"
+          pg_dump --version
+          pg_restore --version
           mkdir -p storage
           printf 'Isolated backup drill fixture\n' > storage/backup-drill.txt
           npm run backup:verify
