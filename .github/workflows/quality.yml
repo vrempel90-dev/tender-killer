@@ -50,6 +50,15 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Self-hosted Docker Compose security contract
+        env:
+          POSTGRES_PASSWORD: ci-compose-secret-not-real
+          APP_DB_PASSWORD: ci-compose-app-password-not-real
+          SESSION_SECRET: ci-compose-session-key-not-real-32-chars
+          DOCUMENT_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+        run: |
+          docker compose -f docker-compose.yml config --format json | node scripts/check-self-host-compose.mjs
+          docker compose -f docker-compose.yml -f docker-compose.model-install.yml --profile model-install config --quiet
       - run: node scripts/ci-keys.mjs
       - run: npm run db:generate && npm run db:deploy && npm run db:seed
       - name: Preserve existing records across all migrations on PostgreSQL 18
