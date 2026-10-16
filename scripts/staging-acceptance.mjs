@@ -95,9 +95,10 @@ assert.match(login.text, /Забыли пароль\?/);
 const forgot = await anonymous.call('/forgot-password');
 expectStatus(forgot, 200, 'forgot-password page');
 const unavailableMail = await anonymous.call('/api/auth/forgot-password', {
-  method: 'POST', json: { email: 'nobody@example.test' },
+  method: 'POST', json: { email: 'nobody-' + randomUUID() + '@example.test' },
 });
-expectStatus(unavailableMail, 503, 'unconfigured sender must fail safely');
+assert.ok([503, 429].includes(unavailableMail.status),
+  'Unconfigured sender must fail safely (503), or return the same account-independent rate limit (429)');
 console.log('PASS login, forgot-password, safe email failure');
 
 const a = await register('A');
