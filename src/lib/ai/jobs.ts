@@ -34,11 +34,14 @@ export async function runChunkedJob<T extends { meta: { model: string; provider?
     }
     await prisma.aiAnalysisJob.update({ where: { id: job.id }, data: { status: 'SUCCEEDED', finishedAt: new Date() } });
     return results;
-  } catch {
+  } catch (cause) {
+    // Keep a bounded, non-sensitive diagnostic category; never persist prompts or model output.
+    const reason = bounded.aborted ? 'TIMEOUT' : cause instanceof AiResponseError ? 'AI_RESPONSE' : 'UNEXPECTED';
+    console.error('[ai-chunk-job] failed', { kind, jobId: job.id, completedChunks: results.length, totalChunks: chunks.length, reason });
     await prisma.aiAnalysisJob.update({ where: { id: job.id }, data: {
       status: results.length ? 'PARTIAL' : 'FAILED', finishedAt: new Date(),
-      error: bounded.aborted ? 'Прервано или превышено общее время анализа' : 'Не все фрагменты обработаны',
+      error: reason === 'TIMEOUT' ? 'Прервано или превышено общее время анализа' : reason === 'AI_RESPONSE' ? 'Ошибка ответа AI-модели' : 'Внутренняя ошибка обработки AI-задания',
     } });
-    throw new AiResponseError(`Анализ не завершён: обработано ${results.length}/${chunks.length} фрагментов. Требует ручной проверки. Промежуточные результаты: задание ${job.id} в настройках AI.`);
+    throw new AiResponseError(`Анализ не завершён: обработано ${results.length}/${chunks.length} фрагментов. Причина: ${reason}. Требует ручной проверки. Промежуточные результаты: задание ${job.id} в настройках AI.`);
   }
 }
