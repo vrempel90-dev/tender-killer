@@ -1,8 +1,9 @@
-import { readJson } from '@/lib/security/request';
+import { RateLimitError, readJson } from '@/lib/security/request';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { verifyPassword, hashPassword } from '@/lib/auth/password';
+import { verifyLoginPassword, hashPassword } from '@/lib/auth/password';
+import { loginRetryMessage } from '@/lib/auth/login-messages';
 import { consumeQuota } from '@/lib/security/quota';
 import { createSession, sessionCookieOptions, SESSION_COOKIE } from '@/lib/auth/session';
 import { evaluateMfaGate } from '@/lib/auth/mfa/policy';
@@ -10,7 +11,7 @@ import { writeAudit } from '@/lib/audit';
 import { clientIp, handleApiError, jsonError, jsonOk } from '@/lib/http';
 
 const LoginSchema = z.object({
-  email: z.email('Некорректный e-mail'),
+  email: z.string().trim().toLowerCase().max(254).pipe(z.email('Некорректный e-mail')),
   password: z.string().min(1, 'Введите пароль').max(256),
 });
 
@@ -26,9 +27,7 @@ export async function POST(request: Request) {
 
     // Одинаковый ответ для несуществующего пользователя и неверного пароля —
     // чтобы нельзя было перебором выяснить, какие e-mail зарегистрированы.
-    const passwordOk = user
-      ? await verifyPassword(data.password, user.passwordHash)
-      : false;
+    const passwordOk = await verifyLoginPassword(data.password, user?.passwordHash ?? null);
 
     if (!user || !passwordOk || !user.isActive) {
       if (user) {
@@ -95,6 +94,12 @@ export async function POST(request: Request) {
       next: gate === 'OK' ? '/dashboard' : '/mfa',
     });
   } catch (error) {
+    if (error instanceof RateLimitError) {
+      const response = jsonError(loginRetryMessage(error.retryAfterSeconds), 429,
+        { retryAfterSeconds: error.retryAfterSeconds });
+      response.headers.set('Retry-After', String(error.retryAfterSeconds));
+      return response;
+    }
     return handleApiError(error);
   }
 }

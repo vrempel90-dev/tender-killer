@@ -2,3 +2,10 @@
 # Never used for real documents. Current CI now generates a fresh random key.
 # No production secret or entire file/rule is excluded.
 b9ba70184a348b63814a68cde234f30a197cce57:.github/workflows/quality.yml:generic-api-key:35
+# Exact historical negative-login fixtures: literal Wrong-Synthetic-123, never an
+# account password/API key. Replaced by random invalid values in the current tests.
+# Only these four immutable commit/file/line fingerprints are excluded.
+9a488e862c2f1122415e0ff8be04ed7121f34c11:tests/auth.spec.ts:generic-api-key:38
+9a488e862c2f1122415e0ff8be04ed7121f34c11:scripts/staging-auth-acceptance.mjs:generic-api-key:72
+9a488e862c2f1122415e0ff8be04ed7121f34c11:scripts/staging-auth-acceptance.mjs:generic-api-key:73
+9a488e862c2f1122415e0ff8be04ed7121f34c11:scripts/staging-auth-acceptance.mjs:generic-api-key:104

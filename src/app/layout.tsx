@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import { connection } from 'next/server';
+import { StagingNotice } from '@/components/layout/staging-notice';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,14 +18,16 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Docker images are built without staging variables and reused across environments.
+  await connection();
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body><StagingNotice />{children}</body>
     </html>
   );
 }

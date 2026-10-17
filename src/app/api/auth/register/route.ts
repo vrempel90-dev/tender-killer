@@ -26,7 +26,7 @@ const RegisterSchema = z.object({
     ])
     .default('GENERAL_VAT'),
   name: z.string().min(2, 'Укажите имя').max(120),
-  email: z.email('Некорректный e-mail'),
+  email: z.string().trim().toLowerCase().max(254).pipe(z.email('Некорректный e-mail')),
   password: z.string().min(10, 'Пароль должен быть не короче 10 символов').max(256),
 });
 

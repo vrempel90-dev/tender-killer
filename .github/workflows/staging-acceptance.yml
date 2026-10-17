@@ -1,0 +1,42 @@
+# Synthetic-only acceptance on the isolated validation Railway project.
+# No production host, credentials, user records, or portal calls.
+name: Railway Staging Acceptance
+on:
+  pull_request:
+    paths:
+      - 'scripts/staging-acceptance.mjs'
+      - '.github/workflows/staging-acceptance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+# All PRs share one real CPU model and SQL admission queue. A second acceptance
+# must wait; otherwise its correct 429 response makes CI spuriously fail.
+concurrency:
+  group: railway-validation-staging
+  cancel-in-progress: false
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      STAGING_BASE_URL: https://tk-validation-web-staging.up.railway.app
+      STAGING_AI_DOCUMENT_TEST: 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - name: Wait for staging health (no production credentials)
+        run: |
+          for attempt in $(seq 1 100); do
+            if curl --fail --silent --show-error "$STAGING_BASE_URL/api/health" >/tmp/staging-health.json 2>/dev/null; then
+              cat /tmp/staging-health.json
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Validation URL unavailable after 500 seconds"
+          exit 1
+      - name: Exercise real staging API, MFA, Qwen3, RLS and ClamAV
+        run: node scripts/staging-acceptance.mjs

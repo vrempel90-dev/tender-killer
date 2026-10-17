@@ -36,7 +36,7 @@ jobs:
       - run: docker build --tag tender-killer:ci .
       - name: Read-only container runtime smoke
         run: |
-          docker run --rm -i --network none --read-only --cap-drop ALL --security-opt no-new-privileges --entrypoint node tender-killer:ci <<'NODE'
+          docker run --rm -i --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 1001:1001 --entrypoint node tender-killer:ci <<'NODE'
           const {Worker} = require('node:worker_threads');
           (async () => {
             await require('@node-rs/argon2').hash('runtime-test-only');

@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import { hash, verify } from '@node-rs/argon2';
 
 /** Стоимость хеширования. 12 — разумный баланс для веб-приложения. */
@@ -16,6 +17,14 @@ export async function verifyPassword(
   } catch {
     return false;
   }
+}
+
+let dummyHash: Promise<string> | undefined;
+/** Missing accounts still pay the password verification cost. No credential is stored. */
+export async function verifyLoginPassword(plain: string, passwordHash: string | null): Promise<boolean> {
+  const target = passwordHash ?? await (dummyHash ??= hashPassword(randomBytes(32).toString('hex')));
+  const valid = await verifyPassword(plain, target);
+  return passwordHash !== null && valid;
 }
 
 /** Минимальные требования к паролю. */
