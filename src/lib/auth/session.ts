@@ -123,8 +123,7 @@ export async function getCurrentSession(): Promise<VerifiedSession | null> {
 /** Отзывает сессию в БД. */
 export async function revokeSession(sid: string): Promise<void> {
   await prisma.session
-    .update({ where: { id: sid }, data: { revokedAt: new Date() } })
-    .catch(() => undefined);
+    .updateMany({ where: { id: sid, revokedAt: null }, data: { revokedAt: new Date() } });
 }
 
 export function sessionCookieOptions(expiresAt: Date) {

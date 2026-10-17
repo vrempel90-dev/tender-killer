@@ -8,9 +8,9 @@ import {
 } from '../policy';
 
 describe('isMfaRequiredForRole', () => {
-  it('требует второй фактор для OWNER и ADMIN', () => {
-    expect(isMfaRequiredForRole('OWNER', true)).toBe(true);
-    expect(isMfaRequiredForRole('ADMIN', true)).toBe(true);
+  it('не требует подключения для OWNER и ADMIN даже со старым флагом', () => {
+    expect(isMfaRequiredForRole('OWNER', true)).toBe(false);
+    expect(isMfaRequiredForRole('ADMIN', true)).toBe(false);
   });
 
   it('не требует для аналитика и наблюдателя', () => {
@@ -35,8 +35,8 @@ describe('evaluateMfaGate', () => {
     sessionMfaVerifiedAt: null,
   };
 
-  it('требует подключения, если фактор обязателен и не подключён', () => {
-    expect(evaluateMfaGate(base)).toBe('ENROLL_REQUIRED');
+  it('пропускает владельца без добровольно подключённого фактора', () => {
+    expect(evaluateMfaGate(base)).toBe('OK');
   });
 
   it('требует подтверждения в сессии, если фактор подключён', () => {
@@ -77,7 +77,7 @@ describe('evaluateMfaGate', () => {
     ).toBe('OK');
   });
 
-  it('не выпускает администратора, если компания требует фактор, а он выключен', () => {
+  it('не блокирует администратора старым флагом компании', () => {
     expect(
       evaluateMfaGate({
         role: 'ADMIN',
@@ -85,7 +85,7 @@ describe('evaluateMfaGate', () => {
         mfaEnabled: false,
         sessionMfaVerifiedAt: new Date(),
       }),
-    ).toBe('ENROLL_REQUIRED');
+    ).toBe('OK');
   });
 });
 

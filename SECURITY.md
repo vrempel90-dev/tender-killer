@@ -17,7 +17,8 @@ Unverified, unreadable or truncated content must not establish absence or a
 confirmed fact. Unknown money is missing, not zero.
 
 No production deployment or compliance certification is authorized by passing
-local tests. MFA/passkeys, DB least privilege/RLS, encrypted backup/restore,
+local tests. Password reauthentication for destructive actions, voluntary MFA,
+DB least privilege/RLS, encrypted backup/restore,
 independent security review and Kazakhstan legal/infrastructure validation remain
 release gates. CI dependency/container failures must not be silenced simply to
 merge. Test fixtures and ephemeral CI credentials are never production seeds.

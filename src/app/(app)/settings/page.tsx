@@ -60,6 +60,7 @@ export default async function SettingsPage() {
         description="Параметры компании, налоговые ставки, пользователи и журнал операций."
       />
       <div className="flex-1 space-y-5 px-5 py-5 sm:px-7">
+        <Card><CardHeader action={<Link href="/settings/account" className="text-brand-600 hover:underline">Открыть</Link>}><CardTitle>Мой аккаунт</CardTitle><CardDescription>Завершение всех сессий и удаление своей учётной записи с подтверждением пароля.</CardDescription></CardHeader></Card>
         {['ADMIN', 'OWNER'].includes(session.role) && <Card>
           <CardHeader><CardTitle>AI-модель</CardTitle><CardDescription>Подключение и ограничения AI-анализа.</CardDescription></CardHeader>
           <CardBody>{ai ? <AiPanel summary={ai} /> : <p>Некорректная конфигурация AI. Обратитесь к администратору инфраструктуры.</p>}</CardBody>
@@ -131,7 +132,7 @@ export default async function SettingsPage() {
                   </span>
                 </CardTitle>
                 <CardDescription>
-                  Второй фактор, коды восстановления, активные сессии.
+                  Добровольный второй фактор, коды восстановления, активные сессии.
                 </CardDescription>
               </CardHeader>
               <CardBody>
@@ -140,7 +141,7 @@ export default async function SettingsPage() {
                     {mfaGaps} администраторов без второго фактора
                   </Badge>
                 ) : (
-                  <Badge tone="positive">Администраторы защищены вторым фактором</Badge>
+                  <Badge tone="neutral">Вход по e-mail и паролю. Второй фактор — по желанию.</Badge>
                 )}
               </CardBody>
             </Card>
