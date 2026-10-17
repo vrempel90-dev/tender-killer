@@ -151,21 +151,20 @@ export async function confirmMfaEnrollment(params: {
 
   const { plain, hashes } = await generateRecoveryCodes();
 
-  await dbTransaction(async (tx) => {
+  const confirmed = await dbTransaction(async (tx) => {
+    const claim = await tx.user.updateMany({
+      where: { id: params.userId, totpSecret: user.totpSecret, totpConfirmedAt: null },
+      data: { totpConfirmedAt: new Date(timestampMs), totpLastCounter: result.counter === null ? null : BigInt(result.counter) },
+    });
+    if (claim.count !== 1) return false;
     // Старые коды аннулируются: набор всегда соответствует текущему фактору.
     await tx.recoveryCode.deleteMany({ where: { userId: params.userId } });
     await tx.recoveryCode.createMany({
       data: hashes.map((codeHash) => ({ userId: params.userId, codeHash })),
     });
-    await tx.user.update({
-      where: { id: params.userId },
-      data: {
-        totpConfirmedAt: new Date(timestampMs),
-        totpLastCounter: result.counter === null ? null : BigInt(result.counter),
-      },
-    });
+    return true;
   });
-
+  if (!confirmed) return { confirmed: false, recoveryCodes: [], error: 'Фактор уже подтверждён или изменён. Повторите подключение.' };
   return { confirmed: true, recoveryCodes: plain };
 }
 
@@ -223,10 +222,12 @@ export async function verifyMfa(params: {
   });
 
   if (totp.valid && totp.counter !== null) {
-    await prisma.user.update({
-      where: { id: params.userId },
+    const claimed = await prisma.user.updateMany({
+      where: { id: params.userId, totpSecret: user.totpSecret, totpConfirmedAt: user.totpConfirmedAt,
+        OR: [{ totpLastCounter: null }, { totpLastCounter: { lt: BigInt(totp.counter) } }] },
       data: { totpLastCounter: BigInt(totp.counter) },
     });
+    if (claimed.count !== 1) return { valid: false, kind: null, recoveryCodesLeft: null, error: 'Код уже использован или фактор изменён.' };
     return {
       valid: true,
       kind: 'TOTP',
@@ -241,10 +242,11 @@ export async function verifyMfa(params: {
 
   if (match.matched && match.index !== null) {
     const used = user.recoveryCodes[match.index]!;
-    await prisma.recoveryCode.update({
-      where: { id: used.id },
+    const claimed = await prisma.recoveryCode.updateMany({
+      where: { id: used.id, userId: params.userId, usedAt: null },
       data: { usedAt: new Date(timestampMs) },
     });
+    if (claimed.count !== 1) return { valid: false, kind: null, recoveryCodesLeft: null, error: 'Код уже использован.' };
     const left = user.recoveryCodes.filter(
       (c) => c.usedAt === null && c.id !== used.id,
     ).length;

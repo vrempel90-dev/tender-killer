@@ -10,7 +10,7 @@ import { cookies } from 'next/headers';
 import { consumeQuota } from '@/lib/security/quota';
 
 const RegisterSchema = z.object({
-  companyName: z.string().min(2, 'Укажите название компании').max(200),
+  companyName: z.string().trim().min(2, 'Укажите название компании').max(200),
   bin: z
     .string()
     .regex(/^\d{12}$/, 'БИН/ИИН состоит из 12 цифр')
@@ -25,7 +25,7 @@ const RegisterSchema = z.object({
       'INDIVIDUAL_ENTREPRENEUR',
     ])
     .default('GENERAL_VAT'),
-  name: z.string().min(2, 'Укажите имя').max(120),
+  name: z.string().trim().min(2, 'Укажите имя').max(120),
   email: z.string().trim().toLowerCase().max(254).pipe(z.email('Некорректный e-mail')),
   password: z.string().min(10, 'Пароль должен быть не короче 10 символов').max(256),
 });
@@ -58,6 +58,7 @@ export async function POST(request: Request) {
         role: 'OWNER',
         company: {
           create: {
+            requireMfaForAdmins: false,
             name: data.companyName.trim(),
             bin: data.bin && data.bin.length > 0 ? data.bin : null,
             taxRegime: data.taxRegime,
@@ -89,8 +90,7 @@ export async function POST(request: Request) {
       ipAddress: clientIp(request),
     });
 
-    // Владелец компании по умолчанию обязан подключить второй фактор,
-    // поэтому следующий шаг после регистрации — /mfa, а не дашборд.
+    // Регистрация по паролю сразу открывает приложение для любой роли.
     const gate = evaluateMfaGate({
       role: user.role,
       companyRequiresMfaForAdmins: user.company.requireMfaForAdmins,
@@ -108,6 +108,10 @@ export async function POST(request: Request) {
       201,
     );
   } catch (error) {
+    // Concurrent registrations may both pass the preliminary lookup.
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return jsonError('Пользователь с таким e-mail уже зарегистрирован', 409);
+    }
     return handleApiError(error);
   }
 }

@@ -314,8 +314,8 @@ export default async function DashboardPage() {
                             }).format(run.startedAt)}
                           </p>
                         </div>
-                        <Badge tone={problems > 0 ? 'negative' : 'positive'}>
-                          {problems > 0
+                        <Badge tone={run.status !== 'SUCCEEDED' || run.findings.length === 0 ? 'caution' : problems > 0 ? 'negative' : 'positive'}>
+                          {run.status !== 'SUCCEEDED' || run.findings.length === 0 ? 'Проверка не завершена' : problems > 0
                             ? `Замечаний: ${problems}`
                             : `Проверено: ${run.findings.length}`}
                         </Badge>

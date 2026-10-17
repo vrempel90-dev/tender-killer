@@ -39,6 +39,14 @@ export default async function ComplianceOverviewPage() {
       };
     }
 
+    if (run.status !== 'SUCCEEDED' || run.findings.length === 0) {
+      return {
+        tenderId: tender.id, tenderTitle: tender.title,
+        href: `/tenders/${tender.id}/compliance`,
+        statusLabel: run.status === 'RUNNING' ? 'проверка выполняется' : 'проверка не завершена',
+        statusTone: 'caution', meta: 'Отсутствие замечаний не подтверждено',
+      };
+    }
     const problems = run.findings.filter(
       (f) => f.status === 'NOT_FOUND' || f.status === 'MISMATCH',
     ).length;
@@ -49,7 +57,7 @@ export default async function ComplianceOverviewPage() {
       tenderTitle: tender.title,
       href: `/tenders/${tender.id}/compliance`,
       statusLabel: problems > 0 ? `замечаний ${problems}` : 'замечаний нет',
-      statusTone: problems > 0 ? 'negative' : 'positive',
+      statusTone: problems > 0 ? 'negative' : review > 0 ? 'caution' : 'positive',
       badges: review > 0 ? [{ label: `требует проверки ${review}`, tone: 'caution' }] : [],
       meta: `проверено ${new Intl.DateTimeFormat('ru-KZ', {
         dateStyle: 'short',

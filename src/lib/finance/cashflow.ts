@@ -282,15 +282,15 @@ export function computeCashflow(
   let previousDay = 0;
 
   for (const p of periods) {
+    // The balance before today's event finances the preceding interval.
+    // Payment that clears a deficit must still count all days before it.
+    if (cumulative < 0) daysInDeficit += Math.max(0, p.day - previousDay);
     p.netMinor = p.inflowMinor - p.outflowMinor;
     cumulative += p.netMinor;
     p.cumulativeMinor = cumulative;
     if (cumulative < minCumulative) {
       minCumulative = cumulative;
       peakGapDay = p.day;
-    }
-    if (cumulative < 0) {
-      daysInDeficit += Math.max(0, p.day - previousDay);
     }
     previousDay = p.day;
   }

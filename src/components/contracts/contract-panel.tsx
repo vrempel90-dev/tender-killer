@@ -170,6 +170,7 @@ function AnalysisResult({
   analysis: ContractAnalysisRow;
   financeHref: string;
 }) {
+  if (analysis.status !== 'SUCCEEDED' && analysis.status !== 'FAILED') return <StatusNotice severity="INFO" title="Анализ выполняется">Результат ещё не готов. Отсутствие рисков не подтверждено.</StatusNotice>;
   if (analysis.status === 'FAILED') {
     return (
       <StatusNotice severity="CRITICAL" title="Анализ не выполнен">

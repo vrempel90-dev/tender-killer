@@ -15,6 +15,7 @@ export interface XlsxExtractionResult {
   warnings: string[];
   charCount: number;
   sheetCount: number;
+  truncated: boolean;
 }
 
 /** Ограничение, чтобы один файл не съел всю память и контекст AI. */
@@ -32,6 +33,7 @@ export async function extractXlsxData(
   const tables: SheetTable[] = [];
   const warnings: string[] = [];
   const textParts: string[] = [];
+  let anyTruncated = false;
 
   workbook.eachSheet((worksheet) => {
     const rows: string[][] = [];
@@ -44,16 +46,16 @@ export async function extractXlsxData(
       }
       const cells: string[] = [];
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        if (colNumber > MAX_COLS) return;
+        if (colNumber > MAX_COLS) { truncated = true; return; }
         cells.push(formatCell(cell.value));
       });
       if (cells.some((c) => c.length > 0)) rows.push(cells);
     });
 
     if (truncated) {
+      anyTruncated = true;
       warnings.push(
-        `Лист «${worksheet.name}»: прочитаны первые ${MAX_ROWS_PER_SHEET} строк, `
-        + 'остальные пропущены.',
+        `Лист «${worksheet.name}»: лимит ${MAX_ROWS_PER_SHEET} строк и ${MAX_COLS} столбцов; часть содержимого пропущена.`,
       );
     }
 
@@ -77,6 +79,7 @@ export async function extractXlsxData(
     warnings,
     charCount: text.length,
     sheetCount: workbook.worksheets.length,
+    truncated: anyTruncated,
   };
 }
 

@@ -36,10 +36,8 @@ model Company {
   isVatPayer Boolean  @default(true)
   /// Признак того, что компания — субъект малого предпринимательства
   isSmallBusiness Boolean @default(true)
-  /// Требовать второй фактор для ролей OWNER и ADMIN.
-  /// По умолчанию включено: эти роли меняют налоговые ставки и состав
-  /// пользователей, то есть влияют на расчёты всей компании.
-  requireMfaForAdmins Boolean @default(true)
+  /// Legacy compatibility field. Application policy never forces enrollment.
+  requireMfaForAdmins Boolean @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

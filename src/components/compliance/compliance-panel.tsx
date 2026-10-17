@@ -208,6 +208,7 @@ export function CompliancePanel({
 }
 
 function RunResults({ run }: { run: RunRow }) {
+  if (run.status !== 'SUCCEEDED' && run.status !== 'FAILED') return <StatusNotice severity="INFO" title="Проверка выполняется">Результат ещё не готов. Отсутствие замечаний не подтверждено.</StatusNotice>;
   if (run.status === 'FAILED') {
     return (
       <StatusNotice severity="CRITICAL" title="Проверка не выполнена">

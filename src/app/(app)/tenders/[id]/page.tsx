@@ -128,22 +128,22 @@ export default async function TenderPage({
     {
       number: 6,
       title: 'Документы заявки проверены',
-      done: tender.complianceRuns.length > 0,
+      done: tender.complianceRuns[0]?.status === 'SUCCEEDED',
       href: `/tenders/${tender.id}/compliance`,
       hint:
-        tender.complianceRuns.length > 0
+        tender.complianceRuns[0]?.status === 'SUCCEEDED'
           ? 'Проверка выполнена'
-          : 'Проверки не было',
+          : tender.complianceRuns.length ? 'Проверка не завершена' : 'Проверки не было',
       icon: BadgeCheck,
       blocked: !isAiConfigured(),
     },
     {
       number: 7,
       title: 'Риски договора оценены',
-      done: tender.contractAnalyses.length > 0,
+      done: tender.contractAnalyses[0]?.status === 'SUCCEEDED',
       href: `/tenders/${tender.id}/contract`,
       hint:
-        tender.contractAnalyses.length > 0 ? 'Анализ выполнен' : 'Анализа не было',
+        tender.contractAnalyses[0]?.status === 'SUCCEEDED' ? 'Анализ выполнен' : tender.contractAnalyses.length ? 'Анализ не завершён' : 'Анализа не было',
       icon: FileSearch,
       blocked: !isAiConfigured(),
     },

@@ -55,7 +55,8 @@ export default async function SecuritySettingsPage() {
     }),
   ]);
 
-  const requireForAdmins = company?.requireMfaForAdmins ?? true;
+  const requireForAdmins = false;
+  void company;
   const dateTime = new Intl.DateTimeFormat('ru-KZ', {
     dateStyle: 'short',
     timeStyle: 'short',
@@ -65,10 +66,10 @@ export default async function SecuritySettingsPage() {
     <>
       <PageHeader
         title="Безопасность"
-        description="Второй фактор, коды восстановления и активные сессии."
+        description="Добровольный второй фактор, коды восстановления и активные сессии."
       />
       <div className="flex-1 space-y-5 px-5 py-5 sm:px-7">
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Второй фактор (TOTP)</CardTitle>
@@ -89,13 +90,12 @@ export default async function SecuritySettingsPage() {
             </CardBody>
           </Card>
 
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <Card>
               <CardHeader>
                 <CardTitle>Политика компании</CardTitle>
                 <CardDescription>
-                  Требование второго фактора для ролей «Владелец» и
-                  «Администратор».
+                  Вход по e-mail и паролю одинаков для всех ролей. Второй фактор можно включить добровольно в своём аккаунте.
                 </CardDescription>
               </CardHeader>
               <CardBody className="space-y-3 text-[13px]">
@@ -110,7 +110,7 @@ export default async function SecuritySettingsPage() {
                 <p className="leading-relaxed text-ink-400">
                   {requireForAdmins
                     ? 'Пользователь с правами администратора не получает доступ к данным, пока не подключит второй фактор.'
-                    : 'Требование выключено. Это снижает защиту от украденного пароля администратора.'}
+                    : 'Обязательная настройка отключена. Если вы добровольно включите TOTP, при следующем входе потребуется его код.'}
                 </p>
               </CardBody>
             </Card>
@@ -119,7 +119,7 @@ export default async function SecuritySettingsPage() {
               <CardHeader>
                 <CardTitle>Ваши активные сессии</CardTitle>
                 <CardDescription>
-                  Сессия без отметки о втором факторе не имеет доступа к данным.
+                  Управление сессиями и удаление своего аккаунта доступны в разделе «Мой аккаунт».
                 </CardDescription>
               </CardHeader>
               <CardBody className="space-y-2.5 text-[13px]">
@@ -128,11 +128,11 @@ export default async function SecuritySettingsPage() {
                     key={item.id}
                     className="flex flex-wrap items-start justify-between gap-2 border-b border-ink-50 pb-2.5 last:border-0 last:pb-0"
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                       <p className="truncate text-ink-900">
                         {item.userAgent ?? 'Неизвестное устройство'}
                       </p>
-                      <p className="text-[12px] text-ink-400">
+                      <p className="break-words text-[12px] text-ink-400">
                         {dateTime.format(item.createdAt)}
                         {item.ipAddress ? ` · ${item.ipAddress}` : ''}
                         {item.id === session.sid ? ' · текущая' : ''}

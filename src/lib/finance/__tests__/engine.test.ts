@@ -7,7 +7,7 @@ describe('движок: итоговый расчёт', () => {
   const result = calculateFinance(realisticTenderInput());
 
   it('возвращает версию движка и версию налогового конфига', () => {
-    expect(result.engineVersion).toBe('1.1.0');
+    expect(result.engineVersion).toBe('1.1.1');
     expect(result.taxConfigVersion).toBe('2026.01-KZ');
   });
 

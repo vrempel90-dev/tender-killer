@@ -51,8 +51,7 @@ seal() {
   openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -md sha512 -salt \
     -in "$source" -out "$destination" \
     -pass env:BACKUP_ENCRYPTION_PASSPHRASE
-  openssl dgst -sha256 -hmac "$BACKUP_ENCRYPTION_PASSPHRASE" \
-    -out "$destination.hmac" "$destination"
+  node "$(dirname "${BASH_SOURCE[0]}")/backup-auth.mjs" create "$destination"
   chmod 600 "$destination" "$destination.hmac"
 }
 

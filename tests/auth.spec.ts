@@ -2,14 +2,13 @@ import { test, expect, request as requestFactory } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
-import { generateTotp } from '../src/lib/auth/mfa/totp';
 
 const dbURL = process.env.DATABASE_URL ?? '';
 if (!dbURL || !['localhost', '127.0.0.1'].includes(new URL(dbURL).hostname)) throw new Error('Isolated local DB required');
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: dbURL }) });
 test.afterAll(() => db.$disconnect());
 
-test('registration, first login, logout, second login, uniform 401 and mandatory MFA', async ({ request }) => {
+test('registration, first login, logout, second login and uniform 401 without forced MFA', async ({ request }) => {
   const email = `auth-${randomUUID()}@example.test`, password = `Synthetic-${randomUUID()}-123`;
   const wrongPassword = randomUUID();
   const registered = await request.post('/api/auth/register', { data: {
@@ -19,20 +18,15 @@ test('registration, first login, logout, second login, uniform 401 and mandatory
   expect(registered.status()).toBe(201);
   const account = (await registered.json()).data;
   try {
-    expect(account).toMatchObject({ mfaGate: 'ENROLL_REQUIRED', next: '/mfa' });
-    expect((await request.get('/api/tenders')).status()).toBe(403);
+    expect(account).toMatchObject({ mfaGate: 'OK', next: '/dashboard' });
+    expect((await request.get('/api/tenders')).status()).toBe(200);
     expect((await request.post('/api/auth/logout')).status()).toBe(200);
     expect((await request.get('/api/tenders')).status()).toBe(401);
     const first = await request.post('/api/auth/login', { data: { email, password } });
     expect(first.status()).toBe(200);
-    expect((await first.json()).data).toMatchObject({ mfaGate: 'ENROLL_REQUIRED', next: '/mfa' });
-    expect((await request.get('/login', { maxRedirects: 0 })).headers().location).toBe('/mfa');
-    const start = await request.post('/api/auth/mfa/enroll');
-    expect(start.status()).toBe(200);
-    const secret = new URL((await start.json()).data.otpauthUri).searchParams.get('secret')!;
-    const confirm = await request.post('/api/auth/mfa/confirm', { data: { token: generateTotp({ secret }) } });
-    expect(confirm.status()).toBe(200);
-    const codes = (await confirm.json()).data.recoveryCodes;
+    expect((await first.json()).data).toMatchObject({ mfaGate: 'OK', next: '/dashboard' });
+    expect((await request.get('/login', { maxRedirects: 0 })).headers().location).toBe('/dashboard');
+    expect((await request.get('/mfa', { maxRedirects: 0 })).headers().location).toBe('/dashboard');
     expect((await request.get('/api/tenders')).status()).toBe(200);
     const oldCookies = (await request.storageState()).cookies;
     await request.post('/api/auth/logout');
@@ -44,9 +38,7 @@ test('registration, first login, logout, second login, uniform 401 and mandatory
     expect(missing.headers()['set-cookie']).toBeUndefined();
     const second = await request.post('/api/auth/login', { data: { email: email.toUpperCase(), password } });
     expect(second.status()).toBe(200);
-    expect((await second.json()).data).toMatchObject({ mfaGate: 'VERIFY_REQUIRED', next: '/mfa' });
-    expect((await request.get('/api/tenders')).status()).toBe(403);
-    expect((await request.post('/api/auth/mfa/verify', { data: { token: codes[0] } })).status()).toBe(200);
+    expect((await second.json()).data).toMatchObject({ mfaGate: 'OK', next: '/dashboard' });
     expect((await request.get('/api/tenders')).status()).toBe(200);
     // A revoked cookie cannot regain access after a fresh login.
     expect(await db.session.count({ where: { userId: account.userId, revokedAt: { not: null } } })).toBe(2);

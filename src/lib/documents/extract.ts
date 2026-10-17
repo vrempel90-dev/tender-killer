@@ -85,7 +85,7 @@ export async function extractDocument(params: {
   if (ext === 'xlsx' || ext === 'xls') {
     const result = await extractXlsxData(params.buffer);
     return {
-      status: result.charCount === 0 ? 'FAILED' : 'SUCCEEDED',
+      status: result.charCount === 0 ? 'FAILED' : result.truncated ? 'PARTIAL' : 'SUCCEEDED',
       engine: 'exceljs',
       text: result.text,
       pageCount: null,

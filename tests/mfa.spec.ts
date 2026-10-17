@@ -74,23 +74,22 @@ test.afterAll(async () => {
   await appDb.$disconnect();
 });
 
-test('владелец без второго фактора не получает доступ к данным компании', async () => {
+test('владелец получает доступ по паролю без обязательного второго фактора', async () => {
   const context = await newContext();
   try {
     const account = await register(context);
     // Сервер сам говорит, куда вести пользователя.
-    expect(account.mfaGate).toBe('ENROLL_REQUIRED');
-    expect(account.next).toBe('/mfa');
+    expect(account.mfaGate).toBe('OK');
+    expect(account.next).toBe('/dashboard');
 
     const read = await context.get('/api/tenders');
-    expect(read.status()).toBe(403);
-    expect((await read.json()).details).toMatchObject({ mfaGate: 'ENROLL_REQUIRED' });
+    expect(read.status()).toBe(200);
 
     const write = await context.post('/api/tenders', { data: { title: 'E2E без фактора' } });
-    expect(write.status()).toBe(403);
+    expect(write.status()).toBe(201);
 
     // Данные действительно не созданы.
-    expect(await db.tender.count({ where: { companyId: account.companyId } })).toBe(0);
+    expect(await db.tender.count({ where: { companyId: account.companyId } })).toBe(1);
   } finally {
     await context.dispose();
   }
@@ -184,21 +183,22 @@ test('код восстановления работает один раз и у
   }
 });
 
-test('обязательный фактор нельзя отключить, а чужой код не подходит', async () => {
+test('добровольный фактор можно отключить с верным кодом даже при старом флаге компании', async () => {
   const context = await newContext();
   try {
     const account = await register(context);
     const { secret } = await enroll(context);
 
-    // Политика компании требует фактор для владельца.
+    await db.company.update({ where: { id: account.companyId }, data: { requireMfaForAdmins: true } });
     const blocked = await context.post('/api/auth/mfa/disable', {
-      data: { token: generateTotp({ secret }) },
+      data: { token: generateTotp({ secret, timestampMs: Date.now() + 30_000 }) },
     });
-    expect(blocked.status()).toBe(403);
+    expect(blocked.status()).toBe(200);
     const stillEnabled = await db.user.findUniqueOrThrow({ where: { id: account.userId } });
-    expect(stillEnabled.totpConfirmedAt).not.toBeNull();
+    expect(stillEnabled.totpConfirmedAt).toBeNull();
 
-    // Фактор другого секрета не подходит.
+    // Повторное добровольное подключение, затем неверный код.
+    await enroll(context);
     await db.company.update({
       where: { id: account.companyId },
       data: { requireMfaForAdmins: false },

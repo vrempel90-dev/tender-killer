@@ -44,6 +44,14 @@ export default async function ContractsOverviewPage() {
       };
     }
 
+    if (analysis.status !== 'SUCCEEDED') {
+      return {
+        tenderId: tender.id, tenderTitle: tender.title,
+        href: `/tenders/${tender.id}/contract`,
+        statusLabel: analysis.status === 'RUNNING' ? 'анализ выполняется' : 'анализ не завершён',
+        statusTone: 'caution', meta: 'Отсутствие рисков не подтверждено',
+      };
+    }
     const high = analysis.risks.filter(
       (r) => r.riskLevel === 'CRITICAL' || r.riskLevel === 'HIGH',
     ).length;
@@ -53,8 +61,8 @@ export default async function ContractsOverviewPage() {
       tenderId: tender.id,
       tenderTitle: tender.title,
       href: `/tenders/${tender.id}/contract`,
-      statusLabel: high > 0 ? `высоких рисков ${high}` : 'высоких рисков нет',
-      statusTone: high > 0 ? 'negative' : 'positive',
+      statusLabel: high > 0 ? `высоких рисков ${high}` : 'AI не выявил высоких рисков — требуется проверка',
+      statusTone: high > 0 ? 'negative' : 'caution',
       badges: lawyer > 0 ? [{ label: `нужен юрист: ${lawyer}`, tone: 'caution' }] : [],
       meta: `всего рисков ${analysis.risks.length} · ${new Intl.DateTimeFormat('ru-KZ', {
         dateStyle: 'short',

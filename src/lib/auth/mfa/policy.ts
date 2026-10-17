@@ -6,7 +6,7 @@
  */
 
 /** Роли, для которых компания может требовать второй фактор. */
-export const ADMIN_ROLES: readonly string[] = ['OWNER', 'ADMIN'];
+export const ADMIN_ROLES: readonly string[] = [];
 
 /**
  * Срок действия повторного подтверждения (step-up) перед чувствительной
@@ -37,7 +37,10 @@ export function isMfaRequiredForRole(
   role: string,
   companyRequiresMfaForAdmins: boolean,
 ): boolean {
-  return companyRequiresMfaForAdmins && ADMIN_ROLES.includes(role);
+  // Legacy company flags cannot force enrollment. TOTP is a personal opt-in.
+  void role;
+  void companyRequiresMfaForAdmins;
+  return false;
 }
 
 /**

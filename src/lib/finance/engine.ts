@@ -26,7 +26,7 @@ import type {
   MissingInput,
 } from './types';
 
-export const ENGINE_VERSION = '1.1.0';
+export const ENGINE_VERSION = '1.1.1';
 const DAYS_IN_YEAR = 365;
 
 export interface CalculateOptions {
