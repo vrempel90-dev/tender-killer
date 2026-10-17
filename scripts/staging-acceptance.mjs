@@ -2,12 +2,12 @@
 /* global fetch, URL, AbortSignal, Buffer, FormData, Blob */
 // Real staging acceptance test. Synthetic users only. Must NEVER point at production.
 import assert from 'node:assert/strict';
-import { createHmac, randomUUID, createHash } from 'node:crypto';
+import { createHmac, randomUUID, createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 const base = new URL(process.env.STAGING_BASE_URL ?? '');
 assert.equal(base.protocol, 'https:', 'Staging must use HTTPS');
-assert.ok(base.hostname.endsWith('-staging.up.railway.app'),
+assert.equal(base.origin, 'https://tk-validation-web-staging.up.railway.app',
   'Refusing to run against production or an unapproved host');
 const origin = base.origin;
 
@@ -66,11 +66,13 @@ async function register(name) {
       companyName: 'CI isolated ' + name,
       email: 'tk-staging-' + randomUUID() + '@example.test',
       name: 'Synthetic QA User',
-      password: 'Temporary-Validation-Password-123!',
+      password: randomBytes(24).toString('hex') + '-Aa1',
       taxRegime: 'GENERAL_NO_VAT',
     },
   });
   expectStatus(response, 201, 'register ' + name);
+  assert.equal(response.data.data.mfaGate, 'OK', 'MFA enrollment must be voluntary');
+  expectStatus(await a.call('/api/tenders'), 200, 'password-only access ' + name);
   const enrolled = await a.call('/api/auth/mfa/enroll', { method: 'POST', json: {} });
   expectStatus(enrolled, 200, 'mfa enroll ' + name);
   const url = new URL(enrolled.data.data.otpauthUri);
