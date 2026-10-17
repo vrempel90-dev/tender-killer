@@ -94,7 +94,12 @@ test('company tax overrides reach calculations through the restricted RLS runtim
 
 test('all existing module pages render and reload on desktop and mobile without uncaught errors', async ({ request, page, context }) => {
   test.setTimeout(120_000);
-  await account(request); await context.addCookies((await request.storageState()).cookies);
+  const own = await account(request);
+  await db.session.updateMany({ where: { userId: own.userId }, data: {
+    userAgent: `Synthetic-browser/${'long-session-description-'.repeat(30)}`,
+    ipAddress: '2001:db8:1234:5678:9abc:def0:1234:5678',
+  } });
+  await context.addCookies((await request.storageState()).cookies);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });

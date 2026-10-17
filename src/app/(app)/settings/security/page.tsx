@@ -69,7 +69,7 @@ export default async function SecuritySettingsPage() {
         description="Добровольный второй фактор, коды восстановления и активные сессии."
       />
       <div className="flex-1 space-y-5 px-5 py-5 sm:px-7">
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Второй фактор (TOTP)</CardTitle>
@@ -90,7 +90,7 @@ export default async function SecuritySettingsPage() {
             </CardBody>
           </Card>
 
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <Card>
               <CardHeader>
                 <CardTitle>Политика компании</CardTitle>
@@ -128,11 +128,11 @@ export default async function SecuritySettingsPage() {
                     key={item.id}
                     className="flex flex-wrap items-start justify-between gap-2 border-b border-ink-50 pb-2.5 last:border-0 last:pb-0"
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                       <p className="truncate text-ink-900">
                         {item.userAgent ?? 'Неизвестное устройство'}
                       </p>
-                      <p className="text-[12px] text-ink-400">
+                      <p className="break-words text-[12px] text-ink-400">
                         {dateTime.format(item.createdAt)}
                         {item.ipAddress ? ` · ${item.ipAddress}` : ''}
                         {item.id === session.sid ? ' · текущая' : ''}
