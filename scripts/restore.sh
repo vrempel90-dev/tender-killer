@@ -43,10 +43,7 @@ unseal() {
   local sealed="$1" destination="$2"
   [ -f "$sealed" ] || fail "В копии нет файла $sealed"
   [ -f "$sealed.hmac" ] || fail "В копии нет HMAC для $sealed"
-  local expected actual
-  expected="$(cat "$sealed.hmac")"
-  actual="$(openssl dgst -sha256 -hmac "$BACKUP_ENCRYPTION_PASSPHRASE" "$sealed")"
-  [ "$expected" = "$actual" ] \
+  node "$(dirname "${BASH_SOURCE[0]}")/backup-auth.mjs" verify "$sealed" \
     || fail "HMAC не совпал для $sealed: копия повреждена, подменена или пароль неверный"
   openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha512 \
     -in "$sealed" -out "$destination" \
