@@ -10,6 +10,11 @@ on:
 
 permissions:
   contents: read
+# All PRs share one real CPU model and SQL admission queue. A second acceptance
+# must wait; otherwise its correct 429 response makes CI spuriously fail.
+concurrency:
+  group: railway-validation-staging
+  cancel-in-progress: false
 jobs:
   acceptance:
     runs-on: ubuntu-latest
