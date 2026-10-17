@@ -23,7 +23,7 @@ function client() {
   };
 }
 function status(res, expected) { assert.equal(res.status, expected, 'Unexpected HTTP status'); }
-function totp(secret) {
+function totp(secret, now) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
   let n = 0, bits = 0;
   const bytes = [];
@@ -32,7 +32,7 @@ function totp(secret) {
     if (bits >= 8) { bits -= 8; bytes.push((n >>> bits) & 255); }
   }
   const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  counter.writeBigUInt64BE(BigInt(Math.floor(now / 30_000)));
   const digest = createHmac('sha1', Buffer.from(bytes)).update(counter).digest();
   const at = digest[digest.length - 1] & 15;
   return String((digest.readUInt32BE(at) & 0x7fffffff) % 1_000_000).padStart(6, '0');
@@ -41,7 +41,11 @@ async function enroll(call) {
   const start = await call('/api/auth/mfa/enroll', {}); status(start, 200);
   const secret = new URL(start.data.data.otpauthUri).searchParams.get('secret');
   assert.ok(secret);
-  const confirm = await call('/api/auth/mfa/confirm', { token: totp(secret) }); status(confirm, 200);
+  // The test runner's clock may differ from Railway's. Use server time only
+  // to generate this synthetic account's code; never alter MFA/server clocks.
+  const serverTime = Date.parse(start.headers.get('date') ?? '');
+  assert.ok(Number.isFinite(serverTime), 'Server Date is required for the TOTP test');
+  const confirm = await call('/api/auth/mfa/confirm', { token: totp(secret, serverTime) }); status(confirm, 200);
   return confirm.data.data.recoveryCodes;
 }
 async function account(label) {
