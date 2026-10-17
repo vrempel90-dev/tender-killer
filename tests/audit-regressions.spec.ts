@@ -69,7 +69,7 @@ test('failed and running analyses never become clean summaries or completed work
   await expect(page.getByText(/Условия не менялись:/)).toHaveCount(0);
   const item = await db.lineItem.create({ data: { tenderId: tender.id, name: 'Synthetic priced item', quantity: 1, origin: 'MANUAL', confirmedByUser: true } });
   const quote = await db.supplierQuote.create({ data: { companyId: own.companyId, tenderId: tender.id, supplierName: 'Synthetic unverified supplier', currency: 'KZT', verification: 'UNVERIFIED', items: { create: { name: 'Synthetic quote item', quantity: 1, unitPriceMinor: 10000, specMatch: 'MATCH', lineItemId: item.id } } }, include: { items: true } });
-  await db.lineItem.update({ where: { id: item.id }, data: { selectedQuoteItemId: quote.items[0].id } });
+  await db.lineItem.update({ where: { id: item.id }, data: { selectedQuoteItemId: quote.items[0]!.id } });
   await page.goto('/sourcing');
   await expect(page.getByText('все цены подтверждены', { exact: true })).toHaveCount(0);
   await page.goto(`/tenders/${tender.id}/sourcing`);
