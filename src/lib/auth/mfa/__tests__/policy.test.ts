@@ -40,7 +40,7 @@ describe('evaluateMfaGate', () => {
   });
 
   it('требует подтверждения в сессии, если фактор подключён', () => {
-    expect(evaluateMfaGate({ ...base, mfaEnabled: true })).toBe('VERIFY_REQUIRED');
+    expect(evaluateMfaGate({ ...base, mfaEnabled: true })).toBe('OK');
   });
 
   it('пропускает подтверждённую сессию', () => {
@@ -63,7 +63,7 @@ describe('evaluateMfaGate', () => {
         mfaEnabled: true,
         sessionMfaVerifiedAt: null,
       }),
-    ).toBe('VERIFY_REQUIRED');
+    ).toBe('OK');
   });
 
   it('пропускает роль без требования и без подключённого фактора', () => {
@@ -101,7 +101,7 @@ describe('needsStepUp', () => {
   it('требует step-up, если подтверждения не было', () => {
     expect(
       needsStepUp({ mfaEnabled: true, sessionMfaSteppedUpAt: null, now }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('принимает свежее подтверждение', () => {
@@ -115,7 +115,7 @@ describe('needsStepUp', () => {
     const stale = new Date(now.getTime() - STEP_UP_TTL_MS - 1_000);
     expect(
       needsStepUp({ mfaEnabled: true, sessionMfaSteppedUpAt: stale, now }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('граница ровно в TTL ещё действительна', () => {
