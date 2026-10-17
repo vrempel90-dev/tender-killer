@@ -6,6 +6,7 @@ import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const origin = 'https://tk-validation-web-staging.up.railway.app';
+const wrongPassword = randomBytes(24).toString('hex');
 assert.equal(process.env.STAGING_BASE_URL, origin, 'Only the explicitly approved staging origin is allowed');
 function client() {
   let cookie = '';
@@ -69,8 +70,8 @@ assert.equal(loggedIn.data.data.next, '/mfa');
 const codesA = await enroll(a.call);
 status(await a.call('/api/tenders'), 200);
 status(await a.call('/api/auth/logout', {}), 200);
-const wrong = await a.call('/api/auth/login', { email: a.email, password: 'Wrong-Synthetic-123' });
-const absent = await anonymous('/api/auth/login', { email: randomUUID() + '@example.test', password: 'Wrong-Synthetic-123' });
+const wrong = await a.call('/api/auth/login', { email: a.email, password: wrongPassword });
+const absent = await anonymous('/api/auth/login', { email: randomUUID() + '@example.test', password: wrongPassword });
 status(wrong, 401); status(absent, 401); assert.deepEqual(wrong.data, absent.data);
 assert.equal(wrong.headers.get('set-cookie'), null); assert.equal(absent.headers.get('set-cookie'), null);
 loggedIn = await a.call('/api/auth/login', { email: a.email.toUpperCase(), password: a.password }); status(loggedIn, 200);
@@ -101,7 +102,7 @@ console.log('PASS unconfigured email: uniform 503, no claimed delivery');
 await a.call('/api/auth/logout', {});
 let blocked;
 for (let i = 0; i < 11; i++) {
-  const res = await a.call('/api/auth/login', { email: a.email, password: 'Wrong-Synthetic-123' });
+  const res = await a.call('/api/auth/login', { email: a.email, password: wrongPassword });
   if (res.status === 429) { blocked = res; break; }
   status(res, 401);
 }

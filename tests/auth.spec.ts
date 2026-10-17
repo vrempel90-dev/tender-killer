@@ -11,6 +11,7 @@ test.afterAll(() => db.$disconnect());
 
 test('registration, first login, logout, second login, uniform 401 and mandatory MFA', async ({ request }) => {
   const email = `auth-${randomUUID()}@example.test`, password = `Synthetic-${randomUUID()}-123`;
+  const wrongPassword = randomUUID();
   const registered = await request.post('/api/auth/register', { data: {
     companyName: 'Synthetic staging company', name: 'Synthetic owner', email: ` ${email.toUpperCase()} `,
     password, taxRegime: 'GENERAL_NO_VAT',
@@ -35,7 +36,7 @@ test('registration, first login, logout, second login, uniform 401 and mandatory
     expect((await request.get('/api/tenders')).status()).toBe(200);
     const oldCookies = (await request.storageState()).cookies;
     await request.post('/api/auth/logout');
-    const wrong = await request.post('/api/auth/login', { data: { email, password: 'Wrong-Synthetic-123' } });
+    const wrong = await request.post('/api/auth/login', { data: { email, password: wrongPassword } });
     const missing = await request.post('/api/auth/login', { data: { email: `missing-${randomUUID()}@example.test`, password } });
     expect(wrong.status()).toBe(401); expect(missing.status()).toBe(401);
     expect(await wrong.json()).toEqual(await missing.json());

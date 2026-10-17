@@ -1,5 +1,10 @@
 # Railway: план изолированной проверки
 
+> Исторический план от 16.10.2026. С 17.10.2026 отдельный validation staging
+> уже существует: `tender-killer-validation` / `staging`. Текущий порядок входа,
+> отдельной регистрации и MFA — [staging-auth.md](staging-auth.md). Описание
+> ниже сохраняет исходный план и не отражает текущее состояние staging.
+
 Аудит 16.10.2026, project 56c28e89-8593-4608-ad86-d2be7a3ebfa6,
 production environment 53070550-adf1-4ac5-804f-8cd03148b15e.
 Production не менялся. Staging ещё не создан и ссылка отсутствует.
