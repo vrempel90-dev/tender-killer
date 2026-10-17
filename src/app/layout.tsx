@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { connection } from 'next/server';
-import { StagingNotice } from '@/components/layout/staging-notice';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -27,7 +26,7 @@ export default async function RootLayout({
   await connection();
   return (
     <html lang="ru">
-      <body><StagingNotice />{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
