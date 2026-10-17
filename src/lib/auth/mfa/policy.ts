@@ -37,7 +37,9 @@ export function isMfaRequiredForRole(
   role: string,
   companyRequiresMfaForAdmins: boolean,
 ): boolean {
-  return companyRequiresMfaForAdmins && ADMIN_ROLES.includes(role);
+  void role;
+  void companyRequiresMfaForAdmins;
+  return false;
 }
 
 /**
@@ -48,12 +50,9 @@ export function isMfaRequiredForRole(
  * второго фактора не давало бы никакой защиты.
  */
 export function evaluateMfaGate(input: MfaGateInput): MfaGate {
-  if (input.mfaEnabled) {
-    return input.sessionMfaVerifiedAt === null ? 'VERIFY_REQUIRED' : 'OK';
-  }
-  return isMfaRequiredForRole(input.role, input.companyRequiresMfaForAdmins)
-    ? 'ENROLL_REQUIRED'
-    : 'OK';
+  // Password-only sign-in: MFA is not an access prerequisite.
+  void input;
+  return 'OK';
 }
 
 /**
@@ -68,11 +67,8 @@ export function needsStepUp(input: {
   now?: Date;
   ttlMs?: number;
 }): boolean {
-  if (!input.mfaEnabled) return false;
-  if (input.sessionMfaSteppedUpAt === null) return true;
-  const ttl = input.ttlMs ?? STEP_UP_TTL_MS;
-  const now = (input.now ?? new Date()).getTime();
-  return now - input.sessionMfaSteppedUpAt.getTime() > ttl;
+  void input;
+  return false;
 }
 
 /** Текст для пользователя: что именно нужно сделать. */
