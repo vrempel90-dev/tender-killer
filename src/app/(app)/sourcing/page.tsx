@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
 import { requirePageSession } from '@/lib/auth/page-guard';
 import { formatMinorKzt } from '@/lib/money';
+import { mulMinor } from '@/lib/money';
+import { selectedPriceForFinance } from '@/lib/sourcing/to-finance';
 import { PageHeader } from '@/components/layout/page-header';
 import { OverviewList, type OverviewRow } from '@/components/layout/overview-list';
 
@@ -19,10 +21,7 @@ export default async function SourcingOverviewPage() {
           id: true,
           quantity: true,
           selectedQuoteItem: {
-            select: {
-              unitPriceMinor: true,
-              quote: { select: { currency: true, fxRate: true } },
-            },
+            include: { quote: true },
           },
         },
       },
@@ -34,19 +33,10 @@ export default async function SourcingOverviewPage() {
     let confirmedCost = 0;
     let withPrice = 0;
     for (const item of tender.lineItems) {
-      const selected = item.selectedQuoteItem;
-      if (!selected) continue;
-      const rate =
-        selected.quote.currency === 'KZT'
-          ? 1
-          : selected.quote.fxRate === null
-            ? null
-            : Number(selected.quote.fxRate);
-      if (rate === null) continue;
+      const price = selectedPriceForFinance(item.selectedQuoteItem);
+      if (price.unitCostMinor === null) continue;
       withPrice += 1;
-      confirmedCost += Math.round(
-        Number(selected.unitPriceMinor) * rate * Number(item.quantity),
-      );
+      confirmedCost += mulMinor(price.unitCostMinor, Number(item.quantity));
     }
 
     const total = tender.lineItems.length;

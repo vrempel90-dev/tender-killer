@@ -8,6 +8,7 @@
  */
 
 import { toMinor } from '../money';
+import { RequestError } from '../security/request';
 
 /** Поля, которые система умеет распознавать. */
 export type MarketField =
@@ -324,6 +325,8 @@ export function mapProcurementType(value: string): string {
 
 /** Разбор CSV с поддержкой кавычек и разделителей «,» или «;». */
 export function parseCsv(content: string): string[][] {
+  // Checked before allocations, and during parsing (including quoted fields).
+  if (content.length > 8_000_000) throw new RequestError('CSV превышает лимит 8 миллионов символов', 422);
   const text = content.replace(/^\ufeff/, '');
   const delimiter = detectDelimiter(text);
   const rows: string[][] = [];
@@ -331,7 +334,21 @@ export function parseCsv(content: string): string[][] {
   let field = '';
   let inQuotes = false;
 
+  const pushField = () => {
+    if (row.length >= 100) throw new RequestError('CSV содержит более 100 столбцов', 422);
+    if (field.length > 100_000) throw new RequestError('Ячейка CSV превышает 100000 символов', 422);
+    row.push(field);
+    field = '';
+  };
+  const pushRow = () => {
+    if (rows.length >= 10_001) throw new RequestError('CSV содержит более 10000 строк данных', 422);
+    pushField();
+    rows.push(row);
+    row = [];
+  };
+
   for (let i = 0; i < text.length; i += 1) {
+    if (field.length > 100_000) throw new RequestError('Ячейка CSV превышает 100000 символов', 422);
     const char = text[i];
     const next = text[i + 1];
 
@@ -350,13 +367,9 @@ export function parseCsv(content: string): string[][] {
     if (char === '"') {
       inQuotes = true;
     } else if (char === delimiter) {
-      row.push(field);
-      field = '';
+      pushField();
     } else if (char === '\n') {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = '';
+      pushRow();
     } else if (char === '\r') {
       // пропускаем: перевод строки обработается на \n
     } else {
@@ -365,9 +378,9 @@ export function parseCsv(content: string): string[][] {
   }
 
   if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
+    pushRow();
   }
+  if (inQuotes) throw new RequestError('Незакрытая кавычка в CSV', 422);
 
   return rows;
 }

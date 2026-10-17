@@ -119,7 +119,9 @@ function createClients(): Clients {
   const adapter = new PrismaPg({ connectionString });
   const base = new PrismaClient({
     adapter,
-    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+    // ORM errors may embed credential-bearing query arguments. API boundaries
+    // emit only a correlation ID and error class through handleApiError.
+    log: [],
   });
 
   const extended = base.$extends({

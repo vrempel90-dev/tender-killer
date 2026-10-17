@@ -508,7 +508,9 @@ function WatchCard({
           <p className="rounded-lg bg-ink-50 px-3 py-2 text-[13px] text-ink-600">
             {watch.revisions <= 1
               ? 'Зафиксирована точка отсчёта. Сравнивать пока не с чем — это не «изменений нет».'
-              : 'Условия не менялись: сравнение редакций различий не нашло.'}
+              : watch.snapshots.slice(0, 2).some(snapshot => !snapshot.specCharCount)
+                ? 'Сравнение неполное: текст технического задания отсутствует. Проверьте условия вручную.'
+                : 'В доступных данных редакций различий не найдено. Требуется проверка источников.'}
           </p>
         ) : (
           <div className="space-y-2">
@@ -763,7 +765,7 @@ function RevisionForm({
             }
             const count = Array.isArray(payload.data.changes) ? payload.data.changes.length : 0;
             onDone(
-              count === 0
+              payload.data.limitation ? `Редакция №${payload.data.revision} зафиксирована. ${payload.data.limitation}` : count === 0
                 ? `Редакция №${payload.data.revision} зафиксирована: различий не найдено`
                 : `Редакция №${payload.data.revision}: найдено изменений — ${count}`,
             );

@@ -68,10 +68,9 @@ export function handleApiError(error: unknown) {
     console.error(JSON.stringify({ event: 'api_error', errorId, type: error.name }));
     // Вне production текст ошибки нужен для диагностики; в production он
     // не раскрывается, чтобы не утекли подробности запроса.
-    if (process.env.NODE_ENV !== 'production') console.error(error);
     return jsonError('Внутренняя ошибка сервера', 500, { errorId });
   }
-  console.error('Неизвестная ошибка API:', error);
+  console.error(JSON.stringify({ event: 'api_error', type: 'UnknownError' }));
   return jsonError('Внутренняя ошибка сервера', 500);
 }
 

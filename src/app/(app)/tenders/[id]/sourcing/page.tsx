@@ -11,6 +11,7 @@ import {
   type QuoteView,
 } from '@/components/sourcing/sourcing-panel';
 import { evaluateQuote, type QuoteOption } from '@/lib/sourcing/compare';
+import { selectedPriceForFinance } from '@/lib/sourcing/to-finance';
 import type { PickableDocument } from '@/components/compliance/document-picker';
 
 export const metadata: Metadata = { title: 'AI-Снабженец' };
@@ -103,17 +104,7 @@ export default async function SourcingPage({
 
   const lineItems: LineItemView[] = tender.lineItems.map((item) => {
     const selected = item.selectedQuoteItem;
-    let selectedUnitCostMinor: number | null = null;
-    if (selected) {
-      const rate =
-        selected.quote.currency === 'KZT'
-          ? 1
-          : selected.quote.fxRate === null
-            ? null
-            : Number(selected.quote.fxRate);
-      selectedUnitCostMinor =
-        rate === null ? null : Math.round(Number(selected.unitPriceMinor) * rate);
-    }
+    const selectedUnitCostMinor = selectedPriceForFinance(selected, now).unitCostMinor;
     return {
       id: item.id,
       position: item.position,
