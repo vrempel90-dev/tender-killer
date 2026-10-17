@@ -7,7 +7,7 @@ import { ZodError } from 'zod';
 import { AuthError, MfaError } from './auth/guard';
 import { DocumentIntegrityError } from './documents/storage';
 import { EncryptionKeyError } from './documents/encryption';
-import { RequestError } from './security/request';
+import { RateLimitError, RequestError } from './security/request';
 import { jsonSafe } from './serialize';
 import { trustedClientIp } from './security/client-ip';
 
@@ -30,6 +30,11 @@ export function jsonError(
 
 /** Приводит любую ошибку обработчика к корректному HTTP-ответу. */
 export function handleApiError(error: unknown) {
+  if (error instanceof RateLimitError) {
+    const response = jsonError(error.message, 429, { retryAfterSeconds: error.retryAfterSeconds });
+    response.headers.set('Retry-After', String(error.retryAfterSeconds));
+    return response;
+  }
   if (error instanceof RequestError) return jsonError(error.message, error.status);
   if (error instanceof RangeError) return jsonError('Финансовое значение выходит за допустимый диапазон', 422);
   if (error instanceof DocumentIntegrityError) {

@@ -3,6 +3,12 @@ export class RequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
+export class RateLimitError extends RequestError {
+  constructor(readonly retryAfterSeconds: number) {
+    super('Лимит запросов исчерпан. Повторите позднее.', 429);
+  }
+}
+
 export function assertTrustedMutation(request: Request): void {
   if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return;
   const configured = process.env.APP_URL;

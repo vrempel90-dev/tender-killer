@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { prisma } from '../db';
-import { RequestError } from './request';
+import { RateLimitError, RequestError } from './request';
 
 let nextCleanup = 0;
 /** Atomic across all replicas. Failure is closed; no process-local fallback. */
@@ -15,7 +15,10 @@ export async function consumeQuota(scope: string, subject: string, limit: number
     INSERT INTO request_quotas (key, count, "expiresAt") VALUES (${key}, ${Math.min(amount, limit + 1)}, ${expiresAt})
     ON CONFLICT (key) DO UPDATE SET count = LEAST(request_quotas.count + ${amount}, ${limit + 1})
     RETURNING count`;
-  if ((rows[0]?.count ?? limit + 1) > limit) throw new RequestError('Лимит запросов исчерпан. Повторите позднее.', 429);
+  if ((rows[0]?.count ?? limit + 1) > limit) {
+    // Existing fixed window, shared by replicas. Rejected attempts do not extend it.
+    throw new RateLimitError(Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 1000)));
+  }
   if (now > nextCleanup) {
     nextCleanup = now + 3_600_000;
     await prisma.requestQuota.deleteMany({ where: { expiresAt: { lt: new Date(now) } } });

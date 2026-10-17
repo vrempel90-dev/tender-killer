@@ -2,13 +2,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getCurrentSession } from '@/lib/auth/session';
+import { sessionMfaGate } from '@/lib/auth/guard';
 import { LoginForm } from './login-form';
 
 export const metadata: Metadata = { title: 'Вход' };
 
 export default async function LoginPage() {
   const session = await getCurrentSession();
-  if (session) redirect('/dashboard');
+  if (session) redirect(sessionMfaGate(session) === 'OK' ? '/dashboard' : '/mfa');
 
   return (
     <div>
